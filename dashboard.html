@@ -74,7 +74,18 @@ tbody tr.active{background:var(--accent-soft);box-shadow:inset 3px 0 0 var(--acc
 .pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:1px;background:var(--border)}
 .pcell{background:var(--panel);padding:8px 12px}
 .pcell .k{font-size:10.5px;color:var(--text2);text-transform:uppercase;letter-spacing:.3px}
-.pcell .v{font:600 13.5px var(--mono)}
+.pcell .v{font:600 13.5px var(--mono);margin-top:2px}
+.pgroup{border:1px solid var(--border);border-radius:10px;margin:12px 16px;overflow:hidden;background:var(--panel)}
+.pgroup .grouplabel{margin:0;padding:8px 13px;background:color-mix(in srgb, var(--pg-accent, var(--accent)) 7%, var(--panel));border-bottom:1px solid var(--border);border-left:4px solid var(--pg-accent, var(--accent));color:var(--pg-accent, var(--accent));font-size:11px}
+.pgroup .pgrid{background:none;gap:0}
+.pgroup .pcell{border-right:1px solid #f1f3f6;border-bottom:1px solid #f1f3f6;padding:9px 13px}
+.pgroup .pcell .k{font-size:10px}
+.g0{--pg-accent:#4C72B0}
+.g1{--pg-accent:#55A868}
+.g2{--pg-accent:#DD8452}
+.g3{--pg-accent:#8172B3}
+.g4{--pg-accent:#64B5CD}
+.gp{--pg-accent:#C44E52}
 .grouplabel{padding:9px 16px 4px;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px}
 .dual td.meas{color:var(--green);font-weight:600}
 .dual td.err{font-family:var(--mono);font-size:12px}
@@ -93,13 +104,22 @@ svg.spark{display:block;margin:4px 16px 8px}
 #compareCard .head{display:flex;align-items:center;padding:14px 20px;border-bottom:1px solid var(--border)}
 #compareCard .head h2{font-size:15px}
 #compareCard .head button{margin-left:auto;border:none;background:transparent;font-size:20px;cursor:pointer;color:var(--text2)}
+#compareTable{width:auto;margin:0 auto;min-width:60%}
 #compareTable td.diff{background:#fff7ed}
-#compareTable td,#compareTable th{border-bottom:1px solid #f0f2f5}
+#compareTable td,#compareTable th{border-bottom:1px solid #f0f2f5;text-align:center;padding:7px 22px}
 #compareTable th.rowname{color:var(--text2);font-weight:600;font-size:12px;text-align:left}
 #error{display:none;max-width:760px;margin:60px auto;background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:28px}
 #error code{background:var(--bg);padding:2px 7px;border-radius:5px;font-family:var(--mono);font-size:12.5px}
 .muted{color:var(--text2)}
 .note{font-size:12px;color:var(--text2);padding:10px 16px}
+.hint{font-size:12px;color:var(--text2);padding:2px 16px 10px;line-height:1.45}
+.intro{padding:14px 18px 6px}
+.intro p{font-size:13px;color:var(--text);line-height:1.55;margin:0 0 8px;max-width:1000px}
+.intro details{margin:6px 0 10px}
+.intro summary{font-size:12.5px;font-weight:600;color:var(--accent);cursor:pointer}
+.intro dl{display:grid;grid-template-columns:max-content 1fr;gap:4px 14px;font-size:12.5px;margin:10px 0 2px;max-width:1000px}
+.intro dt{font-weight:600;color:var(--text);font-family:var(--mono);font-size:11.5px;white-space:nowrap}
+.intro dd{color:var(--text2);margin:0;line-height:1.45}
 .grid6{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;padding:10px}
 @media(max-width:1200px){.grid6{grid-template-columns:repeat(3,1fr)}}
 .minichart{min-height:130px}
@@ -140,8 +160,8 @@ svg.spark{display:block;margin:4px 16px 8px}
   <h1>Propeller Configuration Browser</h1>
   <nav>
     <button data-tab="overview" class="on">Overview</button>
-    <button data-tab="browse">Browse</button>
     <button data-tab="subset">Representative subset</button>
+    <button data-tab="browse">Browse propellers</button>
   </nav>
   <span id="stats"></span>
 </header>
@@ -155,13 +175,30 @@ svg.spark{display:block;margin:4px 16px 8px}
 <main id="app" style="display:none">
 
   <section class="tab on" id="tab-overview">
+    <div class="card intro">
+      <p><b>What you are looking at.</b> 5000 computer-generated propeller designs for 3-D printing, each simulated in free vertical flight: the propeller is spun up to a chosen <b>launch RPM</b>, released, and climbs on its own thrust while its spin decays. The key result per design is <b>h&nbsp;max</b> — the peak height it reaches. 100 designs were printed and 30 were flight-tested to validate the simulation.</p>
+      <p>The <b>Launch RPM</b> selector re-draws the highlighted charts at that release speed. Geometry charts don't change — the designs stay the same, only how fast they're launched.</p>
+      <details>
+        <summary>Glossary of the terms used on this page</summary>
+        <dl>
+          <dt>h max (aero)</dt><dd>peak climb height from the pure aerodynamic simulation — an idealised release.</dd>
+          <dt>h max (corrected)</dt><dd>the same flight after the calibrated launcher correction: the real test rig strips most of the spin as it releases the propeller, so real heights are much lower. This is what the launcher actually achieves and what measurements are compared against.</dd>
+          <dt>T/W</dt><dd>thrust-to-weight ratio at release. Below 1 (red line) the design cannot lift off.</dd>
+          <dt>static thrust / torque</dt><dd>thrust and shaft torque at the launch RPM at zero climb speed, from the QProp blade-element model.</dd>
+          <dt>FOM</dt><dd>figure of merit — hover efficiency (ideal power / actual power); higher is more efficient. Independent of launch RPM.</dd>
+          <dt>Izz</dt><dd>spin-axis moment of inertia; sets how fast the spin decays after release.</dd>
+          <dt>confidence score</dt><dd>quality of the airfoil aerodynamic data behind a design's simulation (1 = all blade sections solved directly, lower = fallbacks were needed).</dd>
+          <dt>radial evolution</dt><dd>how chord (blade width), twist and thickness vary from hub to tip; each faint line is one sampled design, the black line is the average.</dd>
+        </dl>
+      </details>
+    </div>
     <div class="controls">
       <label>Launch RPM (all charts)
         <select id="rpmSelOv"></select>
       </label>
     </div>
     <div class="card">
-      <h2>Geometric parameters — sampled distributions (all 17)</h2>
+      <h2>Geometric parameters — sampled distributions (all 17)</h2><div class="hint">Each design is fully described by these 17 numbers. The histograms show how evenly the design space is covered (Latin Hypercube Sampling); they do not depend on the launch RPM.</div>
       <div class="grid6" id="ov-geo"></div>
     </div>
     <div class="grid3 mt">
@@ -188,12 +225,13 @@ svg.spark{display:block;margin:4px 16px 8px}
       <div class="card"><h2>Static shaft power</h2><div class="chart" id="ov-pshaft"></div></div>
     </div>
     <div class="grid2 mt">
-      <div class="card"><h2>Thrust-to-weight vs peak height h</h2><div class="chart" id="ov-scatter" style="min-height:340px"></div></div>
-      <div class="card"><h2>Median height vs launch RPM</h2><div class="chart" id="ov-hrpm" style="min-height:340px"></div></div>
+      <div class="card"><h2>Thrust-to-weight vs peak height h</h2><div class="hint">Every dot is one design at the selected launch RPM. Designs left of the red line (T/W &lt; 1) cannot lift off; height grows steeply with T/W.</div><div class="chart" id="ov-scatter" style="min-height:340px"></div></div>
+      <div class="card"><h2>Median height vs launch RPM</h2><div class="hint">How high the typical lifting-off design flies at each launch RPM — idealised (aero, dashed) vs what the launcher achieves (corrected). Dotted red line: the 2.6 m ceiling of the test rig.</div><div class="chart" id="ov-hrpm" style="min-height:340px"></div></div>
     </div>
   </section>
 
   <section class="tab" id="tab-browse">
+    <div class="note" style="padding:10px 4px 8px"><b>Browse all 5000 designs.</b> Narrow the list with the search box, checkboxes or <i>+ add filter</i> (any numeric column, min/max), then click a row to open the full propeller card: 3-D view of the printed part, all geometry values, the airfoil sections used by the aerodynamic model (click an airfoil for its lift/drag polar), performance at the selected RPM, and — for the 30 flight-tested props — measured values side by side with the simulation and their % errors. <span style="color:var(--green);font-weight:600">Green</span> = flight-tested, <span style="color:#d97706;font-weight:600">amber</span> = printed but not flown.</div>
     <div class="controls">
       <label>Search config ID
         <input id="q" type="text" placeholder="e.g. 885" />
@@ -230,6 +268,7 @@ svg.spark{display:block;margin:4px 16px 8px}
   </section>
 
   <section class="tab" id="tab-subset">
+    <div class="note" style="padding:10px 4px 8px"><b>The representative subset.</b> Printing all 5000 designs is impossible, so 100 were chosen to cover the design space as evenly as possible (greedy k-centre selection). These charts check that coverage: grey dots are all 5000 designs projected onto their main axes of geometric variation (principal components), red dots are the 100 printed ones, green diamonds the 30 flight-tested ones. Good coverage = red dots spread across the grey cloud rather than clumped.</div>
     <div class="grid2">
       <div class="card"><h2>PCA of the geometry space — PC1 × PC2 <span class="muted" id="pcaVar12"></span></h2><div class="chart" id="pca12" style="min-height:400px"></div></div>
       <div class="card"><h2>PCA of the geometry space — PC1 × PC3 <span class="muted" id="pcaVar13"></span></h2><div class="chart" id="pca13" style="min-height:400px"></div></div>
@@ -311,9 +350,9 @@ const GEOMETRY_GROUPS = [
 const PERF_COLS = ['T_static_N','Q_static_Nm','Pshaft_static_W','T_over_W','h_max_aero_m','h_max_m','flight_time_s','v_max_m_s','v_impact_m_s','rpm_at_impact'];
 const LABELS = {
   radius_mm:'tip radius [mm]', blade_count:'blades', ring_height_mm:'ring height [mm]', ring_thickness_mm:'ring thick. [mm]',
-  inner_chord_mm:'chord [mm]', inner_angle_deg:'angle [deg]', inner_thickness_pct:'thickness [%]', inner_camber:'camber', inner_max_pos:'max-camber pos',
-  mid_radial_pos:'radial pos [r/R]', mid_chord_mm:'chord [mm]', mid_angle_deg:'angle [deg]',
-  outer_chord_mm:'chord [mm]', outer_angle_deg:'angle [deg]', outer_thickness_pct:'thickness [%]', outer_camber:'camber', outer_max_pos:'max-camber pos',
+  inner_chord_mm:'inner chord [mm]', inner_angle_deg:'inner angle [deg]', inner_thickness_pct:'inner thickness [%]', inner_camber:'inner camber', inner_max_pos:'inner max-camber pos',
+  mid_radial_pos:'mid radial pos [r/R]', mid_chord_mm:'mid chord [mm]', mid_angle_deg:'mid angle [deg]',
+  outer_chord_mm:'outer chord [mm]', outer_angle_deg:'outer angle [deg]', outer_thickness_pct:'outer thickness [%]', outer_camber:'outer camber', outer_max_pos:'outer max-camber pos',
   mass_g:'mass [g]', izz_kg_m2:'Izz [kg m2]', frontal_area_drag_m2:'frontal area [m2]', blade_planform_m2:'planform [m2]', confidence_score:'polar confidence',
   T_static_N:'static thrust [N]', Q_static_Nm:'static torque [N m]', Pshaft_static_W:'shaft power [W]', T_over_W:'T/W',
   h_max_aero_m:'h aero [m]', h_max_m:'h max [m]', flight_time_s:'flight time [s]', hover_time_s:'hover time [s]',
@@ -340,6 +379,7 @@ const state = {
   filters: [],
   filterCols: [],
   overviewDrawn: false,
+  overviewStaticDrawn: false,
   subsetDrawn: false,
   polars: new Map(),
   fom: new Map(),
@@ -717,14 +757,16 @@ function select(cid) {
         + '<button id="addCompare">+ compare</button></div>'
         + '<div id="stlBox"><div id="stlMsg"></div></div>';
 
+  let groupIndex = 0;
   for (const grp of GEOMETRY_GROUPS) {
     const group = grp[0], cols = grp[1];
-    h += '<div class="grouplabel">' + group + '</div><div class="pgrid">';
+    h += '<div class="pgroup g' + groupIndex + '"><div class="grouplabel">' + group + '</div><div class="pgrid">';
     for (const col of cols) {
       if (!(col in entry.geo)) continue;
       h += '<div class="pcell"><div class="k">' + label(col) + '</div><div class="v">' + fmt(entry.geo[col]) + '</div></div>';
     }
-    h += '</div>';
+    h += '</div></div>';
+    groupIndex += 1;
   }
 
   const prow = state.polars.get(cid);
@@ -756,13 +798,13 @@ function select(cid) {
      + '<span><span class="dot" style="background:#94a3b8"></span>simulated (raw aero)</span>'
      + (meas ? '<span><span class="dot" style="background:#0e9f6e"></span>measured</span>' : '') + '</div>';
 
-  h += '<div class="grouplabel">Performance @ ' + state.rpm + ' RPM</div><div class="pgrid">';
+  h += '<div class="pgroup gp"><div class="grouplabel">Performance @ ' + state.rpm + ' RPM</div><div class="pgrid">';
   const perf = entry.perRpm.get(state.rpm) || {};
   for (const col of PERF_COLS) {
     if (!(col in perf)) continue;
     h += '<div class="pcell"><div class="k">' + label(col) + '</div><div class="v">' + fmt(perf[col]) + '</div></div>';
   }
-  h += '</div>';
+  h += '</div></div>';
 
   if (meas) {
     h += '<div class="grouplabel">Simulated vs measured (per RPM)</div>'
@@ -907,8 +949,14 @@ function openCompare() {
 /* overview charts (Plotly) */
 
 function hist(div, values, color, xlabel, nbins) {
-  Plotly.newPlot(div, [{ x: values, type: 'histogram', nbinsx: nbins || 40, marker: { color: color } }],
-    Object.assign({}, PLOTLY_LAYOUT, { xaxis: Object.assign({}, PLOTLY_LAYOUT.xaxis, { title: { text: xlabel, font: { size: 10 } } }) }), PLOTLY_CFG);
+  const layout = Object.assign({}, PLOTLY_LAYOUT, { xaxis: Object.assign({}, PLOTLY_LAYOUT.xaxis, { title: { text: xlabel, font: { size: 10 } } }) });
+  if (!values.length) {
+    layout.annotations = [{ text: 'no data at this launch RPM<br>(no design lifts off here)', showarrow: false,
+      xref: 'paper', yref: 'paper', x: 0.5, y: 0.5, font: { size: 11, color: '#9ca3af' } }];
+    layout.xaxis = Object.assign({}, layout.xaxis, { visible: false });
+    layout.yaxis = Object.assign({}, PLOTLY_LAYOUT.yaxis, { visible: false });
+  }
+  Plotly.react(div, [{ x: values, type: 'histogram', nbinsx: nbins || 40, marker: { color: color } }], layout, PLOTLY_CFG);
 }
 
 
@@ -939,6 +987,24 @@ function airfoilSVG(code, color) {
   for (const pt of pts) d += (d ? ' L' : 'M') + (pt[0] * 100).toFixed(2) + ' ' + (-pt[1] * 100).toFixed(2);
   return '<svg viewBox="-3 -20 106 40" preserveAspectRatio="xMidYMid meet">'
        + '<path d="' + d + ' Z" fill="' + color + '22" stroke="' + color + '" stroke-width="1.4" vector-effect="non-scaling-stroke"/></svg>';
+}
+
+function parseXfoilPolar(text) {
+  const lines = text.split('\n');
+  let start = null;
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].trim().startsWith('---') && i > 5) { start = i + 1; break; }
+  }
+  if (start === null) return null;
+  const al = [], cl = [], cd = [];
+  for (let i = start; i < lines.length; i++) {
+    const parts = lines[i].trim().split(/\s+/);
+    if (parts.length < 3) continue;
+    const a = Number(parts[0]), l = Number(parts[1]), d = Number(parts[2]);
+    if (!isFinite(a) || !isFinite(l) || !isFinite(d) || d <= 1e-6) continue;
+    al.push(a); cl.push(l); cd.push(d);
+  }
+  return al.length ? { alpha: al, cl: cl, cd: cd } : null;
 }
 
 function xtrFor(re) { return re <= HUB_RE_THRESHOLD ? 0.01 : 0.05; }
@@ -997,7 +1063,7 @@ function openAirfoil(cid, st) {
   if (d.tier !== 'failed' && d.CL0 !== null && d.CL_a !== null) {
     h += '<div class="grouplabel" style="padding-left:20px">Polar (QProp coefficient fit at Re = ' + fmt(d.REref) + ')</div>'
        + '<div class="afpolars"><div class="chart" id="af-cl" style="min-height:230px"></div><div class="chart" id="af-cd" style="min-height:230px"></div></div>'
-       + '<div class="note">Curves reconstructed from the fitted QProp coefficients: CL = CL0 + CL_a·α clipped to [CLmin, CLmax]; CD = CD0 + CD2·(CL − CLCD0)² with CD2u above and CD2l below CLCD0.</div>';
+       + '<div class="note">Solid line: the fitted QProp coefficient model (CL = CL0 + CL_a·α clipped to [CLmin, CLmax]; CD = CD0 + CD2·(CL − CLCD0)² with CD2u above and CD2l below CLCD0). Open circles: the raw converged points from the cached XFoil polar file (shown when the file is available).</div>';
   } else {
     h += '<div class="note" style="color:var(--red)">No polar available — this station was discarded (see note above).</div>';
   }
@@ -1005,26 +1071,49 @@ function openAirfoil(cid, st) {
   document.getElementById('afOverlay').style.display = 'block';
 
   if (d.tier !== 'failed' && d.CL0 !== null && d.CL_a !== null) {
-    const al = [], cl = [], cd = [];
-    for (let a = -8; a <= 16.001; a += 0.25) {
-      let c = d.CL0 + d.CL_a * a * Math.PI / 180;
-      if (d.CLmin !== null) c = Math.max(c, d.CLmin);
-      if (d.CLmax !== null) c = Math.min(c, d.CLmax);
-      const dc = c - (d.CLCD0 !== null ? d.CLCD0 : 0);
-      const cd2 = dc >= 0 ? (d.CD2u !== null ? d.CD2u : 0) : (d.CD2l !== null ? d.CD2l : 0);
-      al.push(a); cl.push(c); cd.push((d.CD0 !== null ? d.CD0 : 0) + cd2 * dc * dc);
-    }
-    Plotly.newPlot('af-cl', [{ x: al, y: cl, mode: 'lines', line: { color: '#4C72B0', width: 2 } }],
-      Object.assign({}, PLOTLY_LAYOUT, {
-        xaxis: Object.assign({}, PLOTLY_LAYOUT.xaxis, { title: { text: 'α [deg]', font: { size: 10 } } }),
-        yaxis: Object.assign({}, PLOTLY_LAYOUT.yaxis, { title: { text: 'CL', font: { size: 10 } } }),
-      }), PLOTLY_CFG);
-    Plotly.newPlot('af-cd', [{ x: al, y: cd, mode: 'lines', line: { color: '#DD8452', width: 2 } }],
-      Object.assign({}, PLOTLY_LAYOUT, {
-        xaxis: Object.assign({}, PLOTLY_LAYOUT.xaxis, { title: { text: 'α [deg]', font: { size: 10 } } }),
-        yaxis: Object.assign({}, PLOTLY_LAYOUT.yaxis, { title: { text: 'CD', font: { size: 10 } } }),
-      }), PLOTLY_CFG);
+    drawAirfoilPolars(prow, d, solvedRe);
   }
+}
+
+async function drawAirfoilPolars(prow, d, solvedRe) {
+  const al = [], cl = [], cd = [];
+  for (let a = -8; a <= 16.001; a += 0.25) {
+    let c = d.CL0 + d.CL_a * a * Math.PI / 180;
+    if (d.CLmin !== null) c = Math.max(c, d.CLmin);
+    if (d.CLmax !== null) c = Math.min(c, d.CLmax);
+    const dc = c - (d.CLCD0 !== null ? d.CLCD0 : 0);
+    const cd2 = dc >= 0 ? (d.CD2u !== null ? d.CD2u : 0) : (d.CD2l !== null ? d.CD2l : 0);
+    al.push(a); cl.push(c); cd.push((d.CD0 !== null ? d.CD0 : 0) + cd2 * dc * dc);
+  }
+
+  let raw = null;
+  if (solvedRe !== null) {
+    const dir = 'xfoil_polars/' + (prow.__validation_cache ? 'validation/' : '');
+    try {
+      const resp = await fetch(dir + cacheFileName(d.naca, solvedRe));
+      if (resp.ok) raw = parseXfoilPolar(await resp.text());
+    } catch (err) { /* raw file not hosted — fit-only display */ }
+  }
+
+  const clTraces = [{ x: al, y: cl, mode: 'lines', name: 'QProp fit', line: { color: '#4C72B0', width: 2 } }];
+  const cdTraces = [{ x: al, y: cd, mode: 'lines', name: 'QProp fit', line: { color: '#DD8452', width: 2 } }];
+  if (raw) {
+    clTraces.push({ x: raw.alpha, y: raw.cl, mode: 'markers', name: 'XFoil points',
+      marker: { color: '#94a3b8', size: 5, symbol: 'circle-open', line: { width: 1.2 } } });
+    cdTraces.push({ x: raw.alpha, y: raw.cd, mode: 'markers', name: 'XFoil points',
+      marker: { color: '#94a3b8', size: 5, symbol: 'circle-open', line: { width: 1.2 } } });
+  }
+  const legend = { showlegend: true, legend: { orientation: 'h', y: 1.16, font: { size: 10 } } };
+  Plotly.newPlot('af-cl', clTraces,
+    Object.assign({}, PLOTLY_LAYOUT, legend, {
+      xaxis: Object.assign({}, PLOTLY_LAYOUT.xaxis, { title: { text: 'α [deg]', font: { size: 10 } } }),
+      yaxis: Object.assign({}, PLOTLY_LAYOUT.yaxis, { title: { text: 'CL', font: { size: 10 } } }),
+    }), PLOTLY_CFG);
+  Plotly.newPlot('af-cd', cdTraces,
+    Object.assign({}, PLOTLY_LAYOUT, legend, {
+      xaxis: Object.assign({}, PLOTLY_LAYOUT.xaxis, { title: { text: 'α [deg]', font: { size: 10 } } }),
+      yaxis: Object.assign({}, PLOTLY_LAYOUT.yaxis, { title: { text: 'CD', font: { size: 10 } } }),
+    }), PLOTLY_CFG);
 }
 
 document.getElementById('afClose').onclick = function () { document.getElementById('afOverlay').style.display = 'none'; };
@@ -1051,28 +1140,33 @@ function spline3(x, y, xs) {
   return out;
 }
 
-function drawOverview() {
-  const geoData = {};
-  for (const c of GEO_COLS) geoData[c] = [];
-  const mass = [], izz = [], thrust = [], torque = [], pshaft = [], conf = [], tw = [],
-        haero = [], hcorr = [], ftime = [], vmax = [], scTW = [], scH = [], scB = [];
+function collectOverviewData() {
+  const dat = { geo: {}, mass: [], izz: [], conf: [], thrust: [], torque: [], pshaft: [], tw: [],
+                haero: [], hcorr: [], ftime: [], vmax: [], scTW: [], scH: [], scB: [] };
+  for (const c of GEO_COLS) dat.geo[c] = [];
   for (const entry of state.configs.values()) {
     const g = entry.geo, r = entry.perRpm.get(state.rpm) || {};
-    for (const c of GEO_COLS) if (isFinite(g[c])) geoData[c].push(g[c]);
-    if (isFinite(g.mass_g)) mass.push(g.mass_g);
-    if (isFinite(g.izz_kg_m2)) izz.push(g.izz_kg_m2 * 1e6);
-    if (isFinite(g.confidence_score)) conf.push(g.confidence_score);
-    if (isFinite(r.T_static_N)) thrust.push(r.T_static_N);
-    if (isFinite(r.Q_static_Nm)) torque.push(r.Q_static_Nm * 1000);
-    if (isFinite(r.Pshaft_static_W)) pshaft.push(r.Pshaft_static_W);
-    if (isFinite(r.T_over_W)) tw.push(Math.min(r.T_over_W, 5));
-    if (isFinite(r.h_max_aero_m)) haero.push(r.h_max_aero_m);
-    if (isFinite(r.h_max_m)) hcorr.push(r.h_max_m);
-    if (isFinite(r.v_max_m_s) && r.can_liftoff === true) vmax.push(r.v_max_m_s);
-    if (r.can_liftoff === true && isFinite(r.flight_time_s) && r.flight_time_s > 0) ftime.push(r.flight_time_s);
-    if (isFinite(r.T_over_W) && isFinite(r.h_max_m)) { scTW.push(Math.min(r.T_over_W, 5)); scH.push(r.h_max_m); scB.push(g.blade_count); }
+    for (const c of GEO_COLS) if (isFinite(g[c])) dat.geo[c].push(g[c]);
+    if (isFinite(g.mass_g)) dat.mass.push(g.mass_g);
+    if (isFinite(g.izz_kg_m2)) dat.izz.push(g.izz_kg_m2 * 1e6);
+    if (isFinite(g.confidence_score)) dat.conf.push(g.confidence_score);
+    if (isFinite(r.T_static_N)) dat.thrust.push(r.T_static_N);
+    if (isFinite(r.Q_static_Nm)) dat.torque.push(r.Q_static_Nm * 1000);
+    if (isFinite(r.Pshaft_static_W)) dat.pshaft.push(r.Pshaft_static_W);
+    if (isFinite(r.T_over_W)) dat.tw.push(Math.min(r.T_over_W, 5));
+    if (isFinite(r.h_max_aero_m)) dat.haero.push(r.h_max_aero_m);
+    if (isFinite(r.h_max_m)) dat.hcorr.push(r.h_max_m);
+    if (r.can_liftoff === true && isFinite(r.v_max_m_s)) dat.vmax.push(r.v_max_m_s);
+    if (r.can_liftoff === true && isFinite(r.flight_time_s) && r.flight_time_s > 0) dat.ftime.push(r.flight_time_s);
+    if (isFinite(r.T_over_W) && isFinite(r.h_max_m)) { dat.scTW.push(Math.min(r.T_over_W, 5)); dat.scH.push(r.h_max_m); dat.scB.push(g.blade_count); }
   }
+  return dat;
+}
 
+/* Static charts: independent of the launch-RPM selector, drawn once.
+   (Re-creating them on every RPM change leaks WebGL contexts and blanks plots.) */
+
+function drawOverviewStatic(dat) {
   const geoBox = document.getElementById('ov-geo');
   geoBox.innerHTML = '';
   const GEO_PALETTE = ['#4C72B0', '#55A868', '#DD8452', '#8172B3', '#64B5CD', '#C44E52'];
@@ -1088,35 +1182,17 @@ function drawOverview() {
       yaxis: Object.assign({}, PLOTLY_LAYOUT.yaxis, { tickfont: { size: 8.5 } }),
       height: 130,
     });
-    Plotly.newPlot(div.id, [{ x: geoData[c], type: 'histogram', nbinsx: c === 'blade_count' ? 4 : 22,
+    Plotly.react(div.id, [{ x: dat.geo[c], type: 'histogram', nbinsx: c === 'blade_count' ? 4 : 22,
       marker: { color: GEO_PALETTE[gi % GEO_PALETTE.length] }, hoverinfo: 'skip' }], lay, PLOTLY_CFG);
     gi += 1;
   }
 
   drawRadialEvolution();
 
-  hist('ov-mass', mass, '#55A868', 'mass [g]');
-  hist('ov-izz', izz, '#8172B3', 'Izz [mg m²]');
-  hist('ov-thrust', thrust, '#4C72B0', 'static thrust @ ' + state.rpm + ' RPM [N]');
-  hist('ov-torque', torque, '#DD8452', 'static torque @ ' + state.rpm + ' RPM [mN m]');
+  hist('ov-mass', dat.mass, '#55A868', 'mass [g]');
+  hist('ov-izz', dat.izz, '#8172B3', 'Izz [mg m²]');
+  hist('ov-conf', dat.conf, '#64B5CD', 'confidence score');
   hist('ov-fom', Array.from(state.fom.values()), '#64B5CD', 'FOM max (QProp)');
-  hist('ov-tw', tw, '#DD8452', 'T/W @ ' + state.rpm + ' RPM (clipped at 5)');
-  hist('ov-haero', haero, '#55A868', 'aero h max [m]');
-  hist('ov-hcorr', hcorr, '#4C72B0', 'corrected h max [m]');
-  hist('ov-ftime', ftime, '#C44E52', 'flight time [s]');
-  hist('ov-conf', conf, '#64B5CD', 'confidence score');
-  hist('ov-vmax', vmax, '#55A868', 'v max [m/s]');
-  hist('ov-pshaft', pshaft, '#8172B3', 'shaft power @ ' + state.rpm + ' RPM [W]');
-
-  Plotly.newPlot('ov-scatter', [{
-    x: scTW, y: scH, mode: 'markers', type: 'scattergl',
-    marker: { size: 3.5, opacity: 0.35, color: scB, colorscale: 'Viridis', colorbar: { title: { text: 'blades', font: { size: 10 } }, thickness: 10, len: 0.7 } },
-    hoverinfo: 'skip',
-  }], Object.assign({}, PLOTLY_LAYOUT, {
-    xaxis: Object.assign({}, PLOTLY_LAYOUT.xaxis, { title: { text: 'T/W at ' + state.rpm + ' RPM (clipped at 5)', font: { size: 10 } } }),
-    yaxis: Object.assign({}, PLOTLY_LAYOUT.yaxis, { title: { text: 'corrected peak height h [m]', font: { size: 10 } } }),
-    shapes: [{ type: 'line', x0: 1, x1: 1, y0: 0, y1: 1, yref: 'paper', line: { color: '#dc2626', dash: 'dot', width: 1 } }],
-  }), PLOTLY_CFG);
 
   const med = { rpm: [], aero: [], corr: [] };
   for (const rpm of state.rpms) {
@@ -1134,7 +1210,7 @@ function drawOverview() {
     med.aero.push(a.length ? a[Math.floor(a.length / 2)] : null);
     med.corr.push(c.length ? c[Math.floor(c.length / 2)] : null);
   }
-  Plotly.newPlot('ov-hrpm', [
+  Plotly.react('ov-hrpm', [
     { x: med.rpm, y: med.aero, mode: 'lines+markers', name: 'aero median', line: { color: '#55A868', dash: 'dash' } },
     { x: med.rpm, y: med.corr, mode: 'lines+markers', name: 'release-corrected median', line: { color: '#4C72B0' } },
   ], Object.assign({}, PLOTLY_LAYOUT, {
@@ -1143,6 +1219,33 @@ function drawOverview() {
     yaxis: Object.assign({}, PLOTLY_LAYOUT.yaxis, { title: { text: 'median h max of lift-off configs [m]', font: { size: 10 } } }),
     shapes: [{ type: 'line', x0: 0, x1: 1, xref: 'paper', y0: 2.6, y1: 2.6, line: { color: '#dc2626', dash: 'dot', width: 1 } }],
   }), PLOTLY_CFG);
+
+  state.overviewStaticDrawn = true;
+}
+
+function drawOverview() {
+  const dat = collectOverviewData();
+  if (!state.overviewStaticDrawn) drawOverviewStatic(dat);
+
+  hist('ov-thrust', dat.thrust, '#4C72B0', 'static thrust @ ' + state.rpm + ' RPM [N]');
+  hist('ov-torque', dat.torque, '#DD8452', 'static torque @ ' + state.rpm + ' RPM [mN m]');
+  hist('ov-tw', dat.tw, '#DD8452', 'T/W @ ' + state.rpm + ' RPM (clipped at 5)');
+  hist('ov-haero', dat.haero, '#55A868', 'aero h max [m] @ ' + state.rpm + ' RPM');
+  hist('ov-hcorr', dat.hcorr, '#4C72B0', 'corrected h max [m] @ ' + state.rpm + ' RPM');
+  hist('ov-ftime', dat.ftime, '#C44E52', 'flight time [s] @ ' + state.rpm + ' RPM');
+  hist('ov-vmax', dat.vmax, '#55A868', 'v max [m/s] @ ' + state.rpm + ' RPM');
+  hist('ov-pshaft', dat.pshaft, '#8172B3', 'shaft power @ ' + state.rpm + ' RPM [W]');
+
+  Plotly.react('ov-scatter', [{
+    x: dat.scTW, y: dat.scH, mode: 'markers', type: 'scattergl',
+    marker: { size: 3.5, opacity: 0.35, color: dat.scB, colorscale: 'Viridis', colorbar: { title: { text: 'blades', font: { size: 10 } }, thickness: 10, len: 0.7 } },
+    hoverinfo: 'skip',
+  }], Object.assign({}, PLOTLY_LAYOUT, {
+    xaxis: Object.assign({}, PLOTLY_LAYOUT.xaxis, { title: { text: 'T/W at ' + state.rpm + ' RPM (clipped at 5)', font: { size: 10 } } }),
+    yaxis: Object.assign({}, PLOTLY_LAYOUT.yaxis, { title: { text: 'corrected peak height h [m]', font: { size: 10 } } }),
+    shapes: [{ type: 'line', x0: 1, x1: 1, y0: 0, y1: 1, yref: 'paper', line: { color: '#dc2626', dash: 'dot', width: 1 } }],
+  }), PLOTLY_CFG);
+
   state.overviewDrawn = true;
 }
 
@@ -1206,7 +1309,7 @@ function drawRadialEvolution() {
       for (const v of arr) sum += v;
       mean.push(arr.length ? sum / arr.length : null);
     }
-    Plotly.newPlot(div, [
+    Plotly.react(div, [
       { x: lines[key].x, y: lines[key].y, mode: 'lines', type: 'scattergl', line: { color: color, width: 0.6 }, opacity: 0.14, hoverinfo: 'skip', name: 'sampled configs' },
       { x: meanX, y: mean, mode: 'lines', line: { color: '#111827', width: 2.5 }, name: 'sample mean', hoverinfo: 'skip' },
     ], Object.assign({}, PLOTLY_LAYOUT, {

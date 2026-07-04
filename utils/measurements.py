@@ -3,18 +3,18 @@ measurements.py
 ===============
 Single access point for all physically measured data used by the pipeline.
 
-Two measured datasets exist, both stored in ``csv/`` next to the pipeline
-outputs but prefixed with ``00_`` to mark them as measured inputs rather
-than computed outputs:
+All measured inputs live in ``utils/`` — the folder for everything the
+pipeline *uses* but never *generates* (measured data, the Grasshopper
+definition, the solver executables). Three measured datasets exist:
 
-1. ``csv/00_measured_mass_inertia.csv``
+1. ``utils/00_measured_mass_inertia.csv``
    Bench measurements for every fabricated propeller: the mass from the
    precision scale (``mass_g``) and the trifilar-pendulum oscillation time
    (``T_meas``, seconds for 10 oscillations). NB3 uses these to calibrate
    the SLS print density and the linear inertia correction, and NB9 uses
    them to validate the mass and inertia models.
 
-2. ``csv/00_validation_geometry.csv``
+2. ``utils/00_validation_geometry.csv``
    The explicit, unambiguous ID-to-geometry mapping for the 30 physically
    flight-tested propellers. A re-run of the LHS sampling (NB1) reassigned
    config_ids to new geometries, so for 10 early-printed props the row in
@@ -24,6 +24,13 @@ than computed outputs:
    column ('main_geometry_table' for the 20 representative props, or
    'validation_sample' for the 10 recovered props) and an ``stl_source``
    column naming the folder that holds the printed part's STL.
+
+3. ``utils/results/``
+   The raw launcher test campaigns: per-run flight traces
+   (``<id>_<blades>_<rpm>_<run>_cleaned.csv``) in the ``*_cleaned``
+   batch folders, each with a ``cleaned_validation_report.csv``. NB6b
+   fits the release correction on them, NB8 recomputes the spin-retention
+   curve from them, and NB9 validates the simulated heights against them.
 
 This module also owns the trifilar-pendulum rig constants and the
 period-to-inertia conversion, so NB3 and NB9 share one definition.
@@ -36,6 +43,8 @@ import pandas as pd
 
 MEASURED_MASS_INERTIA_NAME = '00_measured_mass_inertia.csv'
 VALIDATION_GEOMETRY_NAME = '00_validation_geometry.csv'
+RESULTS_DIR_NAME = 'results'
+CLEANED_RUN_DIR_NAMES = ['01_PropellerTesting_FirstBatch_cleaned', '02_PropellerTesting_SecondBatch_cleaned']
 
 PENDULUM_RADIUS_M = 0.090
 PENDULUM_STRING_M = 0.700
@@ -45,14 +54,45 @@ OSCILLATION_COUNT = 10
 GRAVITY_M_S2 = 9.81
 
 
+def utils_dir(base_dir):
+
+    return Path(base_dir) / 'utils'
+
+
 def measured_mass_inertia_path(base_dir):
 
-    return Path(base_dir) / 'csv' / MEASURED_MASS_INERTIA_NAME
+    return utils_dir(base_dir) / MEASURED_MASS_INERTIA_NAME
 
 
 def validation_geometry_path(base_dir):
 
-    return Path(base_dir) / 'csv' / VALIDATION_GEOMETRY_NAME
+    return utils_dir(base_dir) / VALIDATION_GEOMETRY_NAME
+
+
+def results_dir(base_dir):
+    """Folder holding the raw launcher test campaigns (utils/results)."""
+
+    return utils_dir(base_dir) / RESULTS_DIR_NAME
+
+
+def cleaned_run_dirs(base_dir):
+    """The cleaned launcher-run batch folders, in campaign order."""
+
+    dirs = []
+    for name in CLEANED_RUN_DIR_NAMES:
+        dirs.append(results_dir(base_dir) / name)
+
+    return dirs
+
+
+def cleaned_validation_reports(base_dir):
+    """The per-batch cleaned_validation_report.csv paths, in campaign order."""
+
+    reports = []
+    for run_dir in cleaned_run_dirs(base_dir):
+        reports.append(run_dir / 'cleaned_validation_report.csv')
+
+    return reports
 
 
 def load_measured_mass_inertia(base_dir):

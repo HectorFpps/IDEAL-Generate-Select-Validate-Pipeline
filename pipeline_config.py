@@ -215,7 +215,7 @@ CSV_NAMES = {
 }
 
 # Measured input data enters the pipeline through utils/measurements.py, which owns
-# the canonical filenames (00_measured_mass_inertia.csv, 00_validation_geometry.csv).
+# the canonical filenames (utils/00_measured_mass_inertia.csv, utils/00_validation_geometry.csv).
 # The 10 recovered validation props are re-simulated by NB3-NB6b and written next to
 # the main outputs with a "val_" prefix, e.g. val_04_xfoil_polars.csv.
 
@@ -245,6 +245,143 @@ for v in FLIGHT_VS:
 LAUNCH_OMEGA = LAUNCH_RPM * 2.0 * math.pi / 60.0   # [rad/s]
 
 NB4_MAX_RPM = int(LAUNCH_RPM * NB4_MAX_RPM_FACTOR)
+
+
+# ---------------------------------------------------------------------------
+# NB1 - constrained LHS sampling of the design space
+# ---------------------------------------------------------------------------
+
+SLIDER_BOUNDS = {                       # (min, max) of every Propeller Configurator slider
+    "radius_mm":             (60, 80),
+    "ring_height_mm":        (4, 10),
+    "ring_thickness_mm":     (1, 5),
+    "blade_count":           (3, 6),
+    "inner_thickness_pct":   (4, 24),
+    "inner_max_pos":         (2, 8),
+    "inner_camber":          (0, 9),
+    "inner_chord_mm":        (5, 11),
+    "inner_angle_deg":       (2, 25),
+    "mid_radial_pos":        (0.3, 0.7),
+    "mid_chord_mm":          (10, 30),
+    "mid_angle_deg":         (2, 25),
+    "outer_thickness_pct":   (4, 24),
+    "outer_max_pos":         (2, 8),
+    "outer_camber":          (0, 9),
+    "outer_chord_mm":        (10, 30),
+    "outer_angle_deg":       (2, 25),
+}
+
+N_SAMPLES              = 5000    # size of the design space
+GLOBAL_RANDOM_SEED     = 99      # numpy global seed (reproducibility)
+RADIUS_BLADE_LHS_SEED  = 99      # LHS seed, radius x blade-count plane
+GEOMETRY_LHS_SEED      = 456     # LHS seed, remaining 13 geometry dims
+
+MIN_ABS_WALL_THICKNESS_MM = 1.0  # printability floor at every station [mm]
+INNER_SOLIDITY_MAX        = 0.7  # chord*blades / circumference cap at the inner station
+MID_SOLIDITY_MAX          = 0.85 # same cap at the mid station
+
+SAMPLING_REFERENCE_RPM   = 4000  # operating point for the AoA feasibility window [rev/min]
+SAMPLING_V_AXIAL_M_PER_S = 1.0   # assumed axial inflow at that point [m/s]
+AOA_MIN_DEG              = 0.0   # per-station angle-of-attack window at the
+AOA_MAX_DEG              = 12.0  #   reference point (keeps sections attached)
+ENFORCE_MONOTONIC_TWIST  = True  # inner angle >= mid angle >= outer angle
+
+ANGLE_INTERPOLATION_METHOD = "natural_cubic_spline_three_profiles"
+ANGLE_SPLINE_BC_TYPE       = "natural"
+
+# ---------------------------------------------------------------------------
+# NB2 - RhinoCompute STL generation
+# ---------------------------------------------------------------------------
+
+RHINO_COMPUTE_URL     = "http://localhost:5000/"
+RHINO_COMPUTE_API_KEY = ""
+RHINO_COMPUTE_EXE     = r"%APPDATA%\McNeel\Rhinoceros\packages\8.0\Hops\0.16.28\rhino.compute\rhino.compute.exe"
+GH_FILE_NAME          = "Propeller_Raul_V1.2.gh"   # parametric generator, lives in utils/
+
+NB2_MAX_CONFIGS       = None   # cap for test runs; None = all
+NB2_MAX_WORKERS_CAP   = 16     # parallel RhinoCompute calls (min with cpu count)
+GENERATION_PASSES     = 3      # retry passes over failed meshes
+RUN_SINGLE_TEST_FIRST = True   # solve one config before the batch
+TEST_CONFIG_INDEX     = 0
+EXPORT_SOLUTION       = True
+POSITION_OFFSET       = 50     # Grasshopper placement offset
+STL_OK_MIN_L          = 0.0035 # minimum plausible enclosed volume [L]
+
+CSV_TO_GH = {                  # geometry CSV column -> Grasshopper input name
+    "radius_mm":           "impellerRadius",
+    "ring_height_mm":      "impellerHeight",
+    "ring_thickness_mm":   "impellerThickness",
+    "blade_count":         "bladeCount",
+    "inner_thickness_pct": "innerThickness",
+    "inner_max_pos":       "innerMaxPos",
+    "inner_camber":        "innerCamber",
+    "inner_chord_mm":      "innerChord",
+    "inner_angle_deg":     "innerAngle",
+    "mid_radial_pos":      "middlePos",
+    "mid_chord_mm":        "middleChord",
+    "mid_angle_deg":       "middleAngle",
+    "outer_thickness_pct": "outerThickness",
+    "outer_max_pos":       "outerMaxPos",
+    "outer_camber":        "outerCamber",
+    "outer_chord_mm":      "outerChord",
+    "outer_angle_deg":     "outerAngle",
+}
+
+# ---------------------------------------------------------------------------
+# NB3 / NB9 - STL lookup
+# ---------------------------------------------------------------------------
+
+STL_FILENAME_PATTERNS = [        # tried in order when locating a config's mesh
+    "prop_{config_id}.stl",
+    "{config_id}.stl",
+    "config_{config_id}.stl",
+    "Prop_{config_id}.stl",
+]
+
+# ---------------------------------------------------------------------------
+# NB4 - execution
+# ---------------------------------------------------------------------------
+
+XFOIL_MAX_WORKERS_CAP = 16     # parallel XFoil processes (min with cpu count)
+
+# ---------------------------------------------------------------------------
+# NB6b / NB8 / NB9 - launcher-run cleaning and release model
+# (the raw runs themselves live in utils/results/, see utils/measurements.py)
+# ---------------------------------------------------------------------------
+
+RELEASE_CORRECTION_FALLBACK = (0.2322, 0.1675)  # (A, B) used only if no runs are present
+
+RUN_MAX_CLIMB_SPEED_MS  = 8.0    # kinematic glitch rejection: max plausible climb speed
+RUN_PEAK_DWELL_S        = 0.05   # peak must persist this long to count
+RUN_PEAK_NEAR_FRACTION  = 0.70   # samples near the peak must reach this fraction of it
+RUN_RPM_FREEZE_WINDOW   = 15     # samples over which the RPM reading must be frozen
+RUN_RPM_FREEZE_TOL      = 1.0    # [rev/min] tolerance for "frozen"
+
+LIFTOFF_HEIGHT_M  = 0.05         # below this a launch counts as no lift-off
+HEIGHT_CEILING_M  = 2.60         # physical string ceiling of the launcher
+CENSOR_AT_M       = 2.40         # measured peaks above this are right-censored
+KICK_VELOCITY_MS  = 1.9          # upward release kick evidenced by the traces [m/s]
+V_ENVELOPE_MS     = 5.0          # void-free QProp envelope bound for the NB9 robustness check
+
+# ---------------------------------------------------------------------------
+# NB9 - validation switches
+# ---------------------------------------------------------------------------
+
+VALIDATE_SIM             = "release"  # which sim the headline metrics use ('release' or 'aero')
+USE_REGRESSED_TARGET     = True       # isotonic-regressed PASS-mean as the measured target
+USE_RPM_CONFIRMED_PEAKS  = True       # frozen-RPM + kinematic glitch rejection of run peaks
+VALIDATION_GRAVITY_M_S2  = 9.80665    # standard gravity; NB9 deliberately keeps its own
+                                      #   value (vs GRAVITY_M_S2) as an independence check
+
+# ---------------------------------------------------------------------------
+# NB8 - figure output and spin-retention recompute
+# ---------------------------------------------------------------------------
+
+NB8_HIRES_DPI      = 300         # dpi of the high-resolution results figures
+RETENTION_LAUNCH_M = 0.05        # min lift height for a run to enter the retention curve
+PLATEAU_FRAC       = 0.90        # fraction of the pre-release RPM plateau used as reference
+JOINT_WINDOW_S     = 1.0         # window around release for the joint RPM estimate [s]
+RETENTION_MIN_CONF = 5           # min confident samples per target-RPM bin
 
 # ---------------------------------------------------------------------------
 # Quick self-test:  python pipeline_config.py

@@ -175,9 +175,24 @@ NB3–NB6b additionally end with a *Validation Subset* pass that re-runs the ide
 
 Each notebook follows the same structure — **1. Imports · 2. Configuration · 3. Function Definitions · 4. Main Code** — and ends with pass/fail checks on its own outputs. The subsections below document, for every notebook: what it does, what its inputs and outputs look like, every function it defines, and what each block of the main code does.
 
-### NB1 — `1_lhs_sampling.ipynb` · LHS Geometrical Parameter Sampling
+- [7.1 NB1 — 1_lhs_sampling.ipynb · LHS Geometrical Parameter Sampling](#71-nb1--1_lhs_samplingipynb--lhs-geometrical-parameter-sampling)
+- [7.2 NB2 — 2_stl_generation.ipynb · STL Generation](#72-nb2--2_stl_generationipynb--stl-generation)
+- [7.3 NB3 — 3_geometry_metadata.ipynb · Geometry Metadata](#73-nb3--3_geometry_metadataipynb--geometry-metadata)
+- [7.4 NB4 — 4_xfoil_simulation.ipynb · XFoil Aerodynamic Polar Generation](#74-nb4--4_xfoil_simulationipynb--xfoil-aerodynamic-polar-generation)
+- [7.5 NB5 — 5_qprop_simulation.ipynb · QProp Performance Sweep](#75-nb5--5_qprop_simulationipynb--qprop-performance-sweep)
+- [7.6 NB6 — 6_flight_dynamics.ipynb · Flight Dynamics](#76-nb6--6_flight_dynamicsipynb--flight-dynamics)
+- [7.7 NB6b — 6b_flight_dynamics_release.ipynb · Flight Dynamics with Screw-Release Model](#77-nb6b--6b_flight_dynamics_releaseipynb--flight-dynamics-with-screw-release-model)
+- [7.8 NB7 — 7_representative_selection.ipynb · Representative Propeller Selection](#78-nb7--7_representative_selectionipynb--representative-propeller-selection)
+- [7.9 NB8 — 8_visualization.ipynb · Design-Space and Pipeline Visualisation](#79-nb8--8_visualizationipynb--design-space-and-pipeline-visualisation)
+- [7.10 NB9 — 9_validation.ipynb · Validation (Mass, Inertia, Simulation)](#710-nb9--9_validationipynb--validation-mass-inertia-simulation)
+
+### 7.1 NB1 — `1_lhs_sampling.ipynb` · LHS Geometrical Parameter Sampling
+
+#### Purpose
 
 Generates the full propeller design space using constrained Latin Hypercube Sampling (LHS). Each of the 5000 configurations is defined by 17 geometric parameters describing the tip radius, blade count, support ring, and the chord, thickness, camber, max-camber position and pitch angle of the three blade cross-sections (inner, mid, outer). Sampling is constrained so that every design is printable and aerodynamically sensible: minimum absolute wall thickness, solidity limits at the hub and mid stations, chord and thickness taper, monotonic twist, and a per-station angle-of-attack window derived from the inflow angle at the reference RPM.
+
+#### Inputs and Outputs
 
 **Inputs:** none (parameter ranges and feasibility constraints are defined in the configuration below)
 
@@ -187,7 +202,7 @@ Generates the full propeller design space using constrained Latin Hypercube Samp
 
 - `csv/01_geometry.csv` — one row per config. Columns: `config_id`, `radius_mm`, `ring_height_mm`, `ring_thickness_mm`, `blade_count`, `inner_thickness_pct`, `inner_max_pos`, `inner_camber`, `inner_chord_mm`, `inner_angle_deg`, `mid_radial_pos`, `mid_chord_mm`, `mid_angle_deg`, `outer_thickness_pct`, `outer_max_pos`, `outer_camber`, `outer_chord_mm`, `outer_angle_deg`
 
-**Functions**
+#### Functions
 
 - **phi_deg(r_mm)** — computes the inflow angle at a given radius: the angle at which the oncoming air meets the rotating blade, from the axial speed and the local tangential speed at the reference RPM. Takes a radius in mm and returns the angle in degrees.
 - **aoa_pitch_bounds(r_mm, angle_min_deg, angle_max_deg, pitch_ceil_deg)** — returns the lowest and highest integer pitch angle allowed at a radius so that the local angle of attack stays inside the safe window, optionally capped by an upper pitch ceiling (used to enforce monotonic twist).
@@ -198,15 +213,19 @@ Generates the full propeller design space using constrained Latin Hypercube Samp
 - **generate_lhs_geometrical_parameters(n_samples)** — the main sampler. Draws the Latin Hypercube designs and, for every design, turns the raw 0–1 samples into the 17 real geometry parameters by floor-binning each sample over its feasibility-narrowed range (solidity-capped chords, wall-thickness-floored thicknesses, taper-capped outer values, AoA-bounded angles) and sizing the support ring from the outer section. Returns the full geometry table as a DataFrame.
 - **check(name, series, lo, hi, invert)** — verifies that a column stays inside an expected range and prints a pass/fail line; used by the validation checks at the end of the notebook.
 
-**Main code walkthrough**
+#### Main Code
 
 - The main code first fixes the configuration: the slider bounds of the Propeller Configurator, the random seeds, the feasibility constants (wall thickness, solidity, taper, angle-of-attack window) and the reference operating point used to derive the inflow angle. It then draws the 5000 constrained LHS designs, saves them to `csv/01_geometry.csv`, and finally verifies every parameter range, the solidity and printability limits, and the twist monotonicity before the CSV is trusted by the downstream notebooks.
 - **4.1 Generate and Export**
 - **4.2 Validation Checks** — Verifies that every geometric parameter stays inside its slider bounds, that the hub and mid solidity limits hold, that the absolute wall thickness is printable at all three stations, and that the twist decreases monotonically from root to tip.
 
-### NB2 — `2_stl_generation.ipynb` · STL Generation
+### 7.2 NB2 — `2_stl_generation.ipynb` · STL Generation
+
+#### Purpose
 
 Turns each sampled propeller configuration into a 3-D mesh. Every row of the geometry table is sent to RhinoCompute, which drives the parametric Grasshopper definition of the Propeller Configurator and returns the finished propeller mesh; the mesh is written as a binary STL, its enclosed volume is computed, and a validity flag records whether the STL is a usable single solid. This notebook requires Rhinoceros to be installed; the path to `rhino.compute.exe` may need to be adjusted in the configuration cell.
+
+#### Inputs and Outputs
 
 **Inputs:** `csv/01_geometry.csv` — the 17 geometry parameters of each configuration
 
@@ -217,7 +236,7 @@ Turns each sampled propeller configuration into a 3-D mesh. Every row of the geo
 - `csv/02_stl_volumes.csv` — one row per config. Columns: `config_id`, `volume_L`, `volume_m3`, `stl_ok`, `single_solid`
 - `stl/prop_<id>.stl` — binary STL, one per config
 
-**Functions**
+#### Functions
 
 - **rhinocompute_is_alive(url, timeout)** — pings the local RhinoCompute server and returns True if it answers, so the notebook knows whether the geometry engine is running before sending it work.
 - **row_to_gh_inputs(row)** — converts one propeller's CSV parameters into the named inputs the Grasshopper definition expects. Takes a geometry-table row and returns a dictionary of Grasshopper input names and values.
@@ -231,7 +250,7 @@ Turns each sampled propeller configuration into a 3-D mesh. Every row of the geo
 - **stl_is_single_solid(stl_path)** — returns True only if the STL is exactly one connected shell.
 - **stl_path_for_config(config_id)** — returns the canonical STL path `stl/prop_<id>.stl` for a configuration.
 
-**Main code walkthrough**
+#### Main Code
 
 - The main code fixes the RhinoCompute settings and paths, loads the geometry table, starts (or connects to) the RhinoCompute server, generates every missing STL in a parallel batch, computes the enclosed volume of each mesh, and finally writes `csv/02_stl_volumes.csv` with the `stl_ok` flag. A configuration is accepted (`stl_ok = True`) only when its STL file exists, its volume is at least the minimum printable volume, and the mesh is a single connected solid.
 - **4.1 Start RhinoCompute**
@@ -239,9 +258,13 @@ Turns each sampled propeller configuration into a 3-D mesh. Every row of the geo
 - **4.3 Volume Calculation** — Loads the existing volumes CSV when present and computes only the missing volumes, so the notebook can be re-run incrementally.
 - **4.4 Export** — Writes `csv/02_stl_volumes.csv` and sets `stl_ok = True` only when the STL file exists on disk, its volume is at least `STL_OK_MIN_L`, and the mesh is a single connected solid (one shell, no detached junk shells).
 
-### NB3 — `3_geometry_metadata.ipynb` · Geometry Metadata
+### 7.3 NB3 — `3_geometry_metadata.ipynb` · Geometry Metadata
+
+#### Purpose
 
 Derives all geometry-based metadata from the LHS sample and the generated STL files. The measured masses of the bench-tested propellers calibrate the effective SLS print density, every STL is converted into mass and spin-axis inertia at that density, and a single validation-based linear correction (`izz_regressed = a · izz + b`) aligns the STL-predicted inertia with the trifilar-pendulum measurements. The per-station NACA airfoil codes that the XFoil stage needs are generated from the sampled airfoil parameters. Finally, the same mass/inertia and NACA computations are run for the 10 recovered validation propellers (whose true printed geometry differs from the main geometry table, see `utils/measurements.py`), producing the `val_`-prefixed outputs used by the validation stages.
+
+#### Inputs and Outputs
 
 **Inputs:** `csv/01_geometry.csv`, `stl/` and `validation_stl/` meshes, `utils/00_measured_mass_inertia.csv` (measured mass and trifilar oscillation time), `utils/00_validation_geometry.csv` (true geometry of the flight-tested props)
 
@@ -252,7 +275,7 @@ Derives all geometry-based metadata from the LHS sample and the generated STL fi
 - `csv/03_naca_codes.csv` — one row per config. Columns: `config_id`, `naca_inner`, `naca_hub`, `naca_s1`, `naca_s2`, `naca_s3`, `naca_s4`, `naca_s5`, `naca_s6`, `naca_outer`, `naca_mid`
 - `csv/03_mass_inertia.csv` — one row per config. Columns: `config_id`, `stl_ok`, `watertight`, `stl_path`, `vol_raw_mm3`, `mass_kg`, `mass_g`, `com_x_mm`, `com_y_mm`, `com_z_mm`, `ixx_com`, `iyy_com`, `izz_com`, `ixx`, `iyy`, `izz`, `ixy`, `ixz`, `iyz`, `izz_com_correction_kg_m2`, `radius_gyration_m`, `izz_regressed`, `izz_regression_slope`, `izz_regression_intercept`, `frontal_area_m2`
 
-**Functions**
+#### Functions
 
 - **load_raw_mesh(mesh_path)** — opens an STL file and returns its triangle mesh together with the watertight flag, ready for geometric analysis.
 - **stl_match_sort_key(path)** — sort key used to pick the most specific match when an STL is located by glob (shortest filename first).
@@ -267,7 +290,7 @@ Derives all geometry-based metadata from the LHS sample and the generated STL fi
 
 The measured-data access and the trifilar-pendulum conversion live in `utils/measurements.py` and are shared with NB9: `load_measured_mass_inertia_by_id` (one averaged row per measured prop) and `add_measured_izz` (oscillation time to measured spin-axis inertia).
 
-**Main code walkthrough**
+#### Main Code
 
 - The main code loads the geometry table and the measured bench data, calibrates the effective SLS print density from the measured props and their printed STLs, generates the per-station NACA codes, computes mass and inertia for all 5000 STLs, fits and applies the validation-based inertia correction, saves all outputs, re-runs the same mass/inertia and NACA computations for the 10 recovered validation props, and closes with pass/fail checks.
 - **4.1 Load Geometry**
@@ -279,9 +302,13 @@ The measured-data access and the trifilar-pendulum conversion live in `utils/mea
 - **4.7 Validation Subset — Recovered Geometry** — The 10 early-printed validation propellers keep their real config_ids, but a later re-run of NB1 reassigned those ids to different geometries, so their rows in `csv/01_geometry.csv` no longer describe the printed parts. Their true geometry is stored in `utils/00_validation_geometry.csv` (rows with `geometry_source = 'validation_sample'`) and their printed meshes in `validation_stl/`. This section runs the identical mass/inertia and NACA computations on those 10 props — reusing the SLS density and the inertia regression fitted above, since both are global material/rig calibrations — and writes the `val_`-prefixed outputs that the validation stages of NB4–NB6b consume.
 - **4.8 Final Checks**
 
-### NB4 — `4_xfoil_simulation.ipynb` · XFoil Aerodynamic Polar Generation
+### 7.4 NB4 — `4_xfoil_simulation.ipynb` · XFoil Aerodynamic Polar Generation
+
+#### Purpose
 
 For every propeller in the design space, computes the aerodynamic input coefficients QProp needs at each blade station by running XFoil (a 2-D coupled panel / boundary-layer solver) across a geometry-adaptive Reynolds-number grid, then fitting the lift curve and the drag polar of every converged run. Each propeller carries 7 aerodynamic stations (the hub station at 8.25 mm plus s1–s6 at r/R fractions 0.20–0.92); each station is assigned the best available polar through a documented tier hierarchy, and every configuration receives a thrust-weighted confidence score. The same flow is then repeated for the 10 recovered validation propellers, producing the `val_`-prefixed outputs.
+
+#### Inputs and Outputs
 
 **Inputs:** `csv/01_geometry.csv`, `csv/03_naca_codes.csv`, `utils/xfoil.exe` (and, for the validation subset, `utils/00_validation_geometry.csv` and `csv/val_03_naca_codes.csv`)
 
@@ -291,7 +318,7 @@ For every propeller in the design space, computes the aerodynamic input coeffici
 
 - `csv/04_xfoil_polars.csv` — one row per config; 135 columns = per-station geometry/tier blocks + per-station QProp coefficient blocks. Columns: `config_id`, `confidence_score`, `naca_hub`, `re_hub`, `r_hub_mm`, `chord_hub_mm`, `twist_hub_deg`, `tier_hub`, `cached_re_hub`, `re_exp_r2_hub`
 
-**Functions**
+#### Functions
 
 **Cache and station geometry**
 
@@ -339,7 +366,7 @@ For every propeller in the design space, computes the aerodynamic input coeffici
 - **order_output_columns(output_table)** — arranges the output columns in the documented order: identifiers, per-station metadata block, per-station coefficient block.
 - **report_check(condition, description)** — pass/fail reporting helper used by the quality report.
 
-**Main code walkthrough**
+#### Main Code
 
 - The main code loads the configuration and the NB1/NB3 inputs, builds the per-station geometry table, derives the Reynolds sample grid from the actual geometry and RPM envelope, runs the XFoil sweep (cached), fits the Reynolds scaling exponent per NACA code, assembles and saves the polar table with confidence scores, repeats the identical flow for the 10 recovered validation propellers (in a separate polar cache, `xfoil_polars/validation/`, so the subset stays self-contained and reproducible), and closes with a quality report.
 - **4.1 Load Input Data**
@@ -351,9 +378,13 @@ For every propeller in the design space, computes the aerodynamic input coeffici
 - **4.7 Validation Subset — Recovered Geometry** — Repeats the identical flow for the 10 recovered validation propellers from `utils/00_validation_geometry.csv` (see NB3). The subset uses its own polar cache (`xfoil_polars/validation/`) and derives its own Re grid from its own station geometry, so its outputs are self-contained and reproducible independently of the main design space.
 - **4.8 Validation and Quality Report** — Sanity checks on the main output before handing it to Notebook 5. A failing check here is much cheaper to investigate than a wrong QProp result.
 
-### NB5 — `5_qprop_simulation.ipynb` · QProp Performance Sweep
+### 7.5 NB5 — `5_qprop_simulation.ipynb` · QProp Performance Sweep
+
+#### Purpose
 
 Runs QProp (blade-element / vortex performance solver) for every valid configuration across the full (velocity, RPM) operating grid and extracts per-config optima. Each (V, RPM) point is a single-point subprocess call with the working directory set to the prop-file folder — no runfile, no temp directory, no path ambiguity — and hover (V = 0) automatically uses QProp's dedicated hover solver. The resulting thrust and torque surfaces T(V, ω) and Q(V, ω) are the lookup tables the free-flight integrator (NB6/NB6b) queries at every timestep. The identical flow then runs for the 10 recovered validation propellers.
+
+#### Inputs and Outputs
 
 **Inputs:** `csv/01_geometry.csv`, `csv/04_xfoil_polars.csv`, `utils/qprop.exe`, `utils/motor.mas` (and `utils/00_validation_geometry.csv`, `csv/val_04_xfoil_polars.csv` for the validation subset)
 
@@ -364,7 +395,7 @@ Runs QProp (blade-element / vortex performance solver) for every valid configura
 - `csv/05_qprop_results.csv` — one row per config. Columns: `config_id`, `qprop_ok`, `T_hover`, `P_hover`, `RPM_hover`, `CT_hover`, `CP_hover`, `FOM_hover`, `FOM_max`, `RPM_FOM_max`, `T_FOM_max`, `P_FOM_max`, `eta_max`, `V_eta_max`, `RPM_eta_max`, `T_eta_max`, `P_eta_max`
 - `csv/05_qprop_sweep.csv.gz` — one row per (config, V, RPM) grid point. Columns: `config_id`, `V`, `rpm`, `Dbeta`, `T`, `Q`, `Pshaft`, `Volts`, `Amps`, `effmot`, `effprop`, `adv`, `CT`, `CP`, `DV`, `eff`, `Pelec`, `Pprop`, `cl_avg`, `cd_avg`, `FOM`, `eta`, `qprop_ok`
 
-**Functions**
+#### Functions
 
 - **count_usable(row)** — counts how many blade stations of a propeller have a usable (converged) airfoil polar; used to decide whether the prop can be simulated.
 - **station_usable(row, stn)** — True when a given station has a valid polar and was not flagged as failed.
@@ -381,7 +412,7 @@ Runs QProp (blade-element / vortex performance solver) for every valid configura
 - **assemble_results(records, merged_table)** — builds the results table and fills configs without any plausible row with `qprop_ok = False`, so the output always has one row per input configuration.
 - **chk(cond, msg)** — pass/fail assertion helper used by the validation report.
 
-**Main code walkthrough**
+#### Main Code
 
 - The main code loads the NB4 polar table, gates it to the runnable configurations (confidence and usable-station thresholds), writes the QProp prop files, runs the batch across the (V, RPM) grid, parses and gates the outputs, extracts the per-config optima, and saves the results and the sweep surface. The identical flow then runs for the validation subset, using its own prop and output folders (`qprop_input/validation/`, `qprop_output/validation/`).
 - **4.1 Load NB4 Data and Gate the Runnable Set** — A configuration is simulated only when its polar confidence score reaches the threshold and it has at least the minimum number of usable stations.
@@ -394,9 +425,13 @@ Runs QProp (blade-element / vortex performance solver) for every valid configura
 - **4.8 Validation Subset — Recovered Geometry** — Runs the identical flow for the 10 recovered validation propellers (see NB3/NB4), using their own prop-file and output folders so the main sweep data is never touched. Writes `csv/val_05_qprop_results.csv` and `csv/val_05_qprop_sweep.csv.gz`.
 - **4.9 Validation Report**
 
-### NB6 — `6_flight_dynamics.ipynb` · Flight Dynamics
+### 7.6 NB6 — `6_flight_dynamics.ipynb` · Flight Dynamics
+
+#### Purpose
 
 Estimates the vertical free-flight trajectory of each 3D-printed propeller after release at a fixed RPM. The motion is a coupled 1-DOF system in height, vertical speed and spin — m·dV/dt = T(V, ω) − m·g − D(V), I·dω/dt = −Q(V, ω), dh/dt = V — integrated with RK45, with thrust and torque bilinearly interpolated from the QProp sweep surfaces. The motor is disconnected at release, so the aerodynamic torque decays the spin throughout the flight. During descent (V < 0) the propeller enters the vortex-ring state that QProp cannot model, so thrust is conservatively set to zero there. The body-drag term D(V) uses the computed axial frontal area of the bluff structure QProp does not model (ring rim + hub + blades edge-on) with Cd = 1.1; the blades' own aerodynamic drag is already inside QProp's T(V, ω). The full flow repeats across the launch-RPM grid and for the 10 recovered validation propellers.
+
+#### Inputs and Outputs
 
 **Inputs:** `csv/01_geometry.csv`, `csv/02_stl_volumes.csv`, `csv/03_mass_inertia.csv`, `csv/05_qprop_results.csv`, `csv/05_qprop_sweep.csv.gz` (and the `val_` equivalents for the validation subset)
 
@@ -406,7 +441,7 @@ Estimates the vertical free-flight trajectory of each 3D-printed propeller after
 
 - `csv/06_flight_dynamics_<rpm>rpm.csv ×11` — one row per config at that launch RPM. Columns: `config_id`, `flight_ok`, `can_liftoff`, `rpm_launch`, `mass_kg`, `inertia_kg_m2`, `blade_planform_m2`, `frontal_area_drag_m2`, `T_static_N`, `Q_static_Nm`, `Pshaft_static_W`, `T_over_W`, `h_max_m`, `flight_time_s`, `hover_time_s`, `v_max_m_s`, `v_impact_m_s`, `rpm_at_impact`
 
-**Functions**
+#### Functions
 
 - **load_sweep_surfaces(sweep_csv_path)** — loads the QProp sweep, keeps only the rows that passed the plausibility gate, and adds the angular speed column. Returns the raw and the filtered sweep tables.
 - **check_sweep_rpm_coverage(sweep_df, launch_rpms)** — the sweep RPM-coverage guard: the bilinear lookup clamps ω to the grid edge, so a launch RPM above the sweep ceiling would silently under-predict thrust by up to (rpm/ceiling)². This function refuses to run when the requested launch RPMs exceed the sweep coverage and returns the detected ceiling.
@@ -423,7 +458,7 @@ Estimates the vertical free-flight trajectory of each 3D-printed propeller after
 - **simulate_all_rpms(run_df, skip_df, surfaces, launch_rpms, output_columns, label)** — runs the batch across the full launch-RPM grid and returns one output table per RPM.
 - **chk(cond, msg)** — pass/fail assertion helper used by the validation checks.
 
-**Main code walkthrough**
+#### Main Code
 
 - The main code loads and gates the inputs, computes the per-config inertia and drag areas, pre-builds the thrust/torque surfaces, simulates every configuration across the full launch-RPM grid, exports the per-RPM tables plus the reference file, repeats the identical flow for the validation subset, and closes with pass/fail checks.
 - **4.1 Load and Validate Input Data** — Loads geometry, mass/inertia, the QProp flags and the full 2-D sweep, applies the sweep RPM-coverage guard, and builds the gated per-config base table.
@@ -434,13 +469,17 @@ Estimates the vertical free-flight trajectory of each 3D-printed propeller after
 - **4.6 Validation Subset — Recovered Geometry** — Runs the identical flow for the 10 recovered validation propellers using their `val_` inputs (see NB3–NB5) and writes `csv/val_06_flight_dynamics_<rpm>rpm.csv` plus the reference `csv/val_06_flight_dynamics.csv`. NB9 reads these files to extend the flight validation to all 30 tested props.
 - **4.7 Validation Checks**
 
-### NB6b — `6b_flight_dynamics_release.ipynb` · Flight Dynamics with Screw-Release Model
+### 7.7 NB6b — `6b_flight_dynamics_release.ipynb` · Flight Dynamics with Screw-Release Model
+
+#### Purpose
 
 Estimates the vertical free-flight trajectory of each propeller **including a semi-empirical model of the screw-release launch mechanism**. This notebook is the release-corrected companion of NB6; the aerodynamic baseline in NB6 stays untouched.
 
 **Why this exists.** The physical launcher releases the prop via a coarse 3-rib helical thread (30° lead, SLS hub on a PETG pin): the motor spins to the target RPM, brakes hard, and the still-spinning hub unscrews off the pin. This does two things the aero-only simulation cannot see: it strips most of the spin at release (the prop flies at a fraction of the target RPM), and it imparts a small upward velocity kick (~1.9 m/s) that lifts even props which cannot aerodynamically hover.
 
 **Approach.** The aerodynamic ODE runs exactly as in NB6, at the target RPM, preserving the trajectory shape and the design ranking. A calibrated, **monotonic** height correction then maps the aero peak onto the real launcher magnitude: **h = A + B · h_aero**. A and B are fitted live in this notebook on the PASS-only, spike-filtered, uncensored launcher heights — the same cleaned data NB9 validates against — and written to `csv/06b_release_calibration.csv`. Because the correction is monotonic in h_aero, the ranking is preserved exactly at every RPM. Both `h_max_aero_m` (raw) and `h_max_m` (corrected) are exported for auditability.
+
+#### Inputs and Outputs
 
 **Inputs:** `csv/01_geometry.csv`, `csv/02_stl_volumes.csv`, `csv/03_mass_inertia.csv`, `csv/05_qprop_results.csv`, `csv/05_qprop_sweep.csv.gz`, the cleaned launcher runs in `utils/results/*_cleaned/` (and the `val_` inputs for the validation subset)
 
@@ -452,7 +491,7 @@ Estimates the vertical free-flight trajectory of each propeller **including a se
 - `csv/06b_release_calibration.csv` — the fitted (A, B) with fit diagnostics. Columns: `A`, `B`, `n_fit_cells`, `fit_on`
 - `csv/dataset_full_simulation.csv` — 55 000 rows = 5000 configs × 11 RPMs. Columns: `config_id`, `rpm_launch`, `radius_mm`, `ring_height_mm`, `ring_thickness_mm`, `blade_count`, `inner_thickness_pct`, `inner_max_pos`, `inner_camber`, `inner_chord_mm`, `inner_angle_deg`, `mid_radial_pos`, `mid_chord_mm`, `mid_angle_deg`, `outer_thickness_pct`, `outer_max_pos`, `outer_camber`, `outer_chord_mm`, `outer_angle_deg`, `mass_g`, `izz_kg_m2`, `frontal_area_drag_m2`, `blade_planform_m2`, `confidence_score`, `stl_ok`, `qprop_ok`, `flight_ok`, `can_liftoff`, `T_static_N`, `Q_static_Nm`, `Pshaft_static_W`, `T_over_W`, `h_max_aero_m`, `h_max_m`, `flight_time_s`, `hover_time_s`, `v_max_m_s`, `v_impact_m_s`, `rpm_at_impact`, `data_source`
 
-**Functions**
+#### Functions
 
 **Shared flight-dynamics functions** (identical physics to NB6):
 
@@ -474,7 +513,7 @@ Estimates the vertical free-flight trajectory of each propeller **including a se
 - **load_filtered_measured()** — collects every PASS run, extracts its filtered peak, aggregates to one (config, RPM) cell with the median and max heights, and flags censored cells (a run at the string ceiling).
 - **fit_release_correction(aero_by_cell)** — regresses the filtered measured median height on the matched aero ODE height over the uncensored cells; returns (A, B, number of cells), with the documented fallback when launcher data is unavailable.
 
-**Main code walkthrough**
+#### Main Code
 
 - The main code mirrors NB6 (configuration, loading, drag areas, surfaces, batch simulation over the launch-RPM grid), then fits the release correction on the filtered launcher data, applies it to every per-RPM table, exports the results and the calibration, assembles the full simulation dataset, repeats the flow for the validation subset, and closes with pass/fail checks.
 - **4.1 Load and Validate Input Data**
@@ -485,9 +524,13 @@ Estimates the vertical free-flight trajectory of each propeller **including a se
 - **4.6 Validation Subset — Recovered Geometry** — Runs the identical flow for the 10 recovered validation propellers using their `val_` inputs and the (A, B) fitted above, and writes `csv/val_06b_flight_dynamics_release_<rpm>rpm.csv` plus the reference `csv/val_06b_flight_dynamics_release.csv`.
 - **4.7 Validation Checks**
 
-### NB7 — `7_representative_selection.ipynb` · Representative Propeller Selection
+### 7.8 NB7 — `7_representative_selection.ipynb` · Representative Propeller Selection
+
+#### Purpose
 
 Selects a single unified subset of **100 propellers** for physical validation. Every selected prop is printed once and measured on the available rigs: scale (mass), trifilar pendulum (Izz), and the free-flight launcher (h_max, flight time, impact speed). Selection uses greedy k-centre (max-min distance) over six geometry features so the subset spans the design space evenly, stratified into two bands: Band 0 (8 props) covers the near-boundary non-liftoff cases with T/W ∈ [0.70, 1.00), where a systematic thrust over-prediction would flip the most consequential binary prediction the simulation makes; Band 1 (92 props) covers the liftoff population, split across 4 equal-quantile h_max tiers (23 each) so the high-flier tail stays represented.
+
+#### Inputs and Outputs
 
 **Inputs:** `csv/06_flight_dynamics.csv` (reference launch RPM), `csv/01_geometry.csv`, `csv/03_mass_inertia.csv`, `csv/05_qprop_results.csv`
 
@@ -497,13 +540,13 @@ Selects a single unified subset of **100 propellers** for physical validation. E
 
 - `csv/07_selected.csv` — the 100 fabricated props with band/tier labels. Columns: `config_id`, `band`, `h_max_tier`, `subset`, `radius_mm`, `blade_count`, `inner_chord_mm`, `mid_chord_mm`, `outer_chord_mm`, `inner_angle_deg`, `mid_angle_deg`, `outer_angle_deg`, `mid_radial_pos`, `mass_g`, `mass_kg`, `izz`, `T_static_N`, `T_over_W`, `h_max_m`, `flight_time_s`, `v_impact_m_s`
 
-**Functions**
+#### Functions
 
 - **greedy_maxmin(coords, n, seed_rng)** — picks a spread-out subset of designs: starting from a random seed design, it repeatedly adds the design farthest (max-min distance) from everything chosen so far, which guarantees a covering radius within a factor of two of the optimum. Takes the normalised feature coordinates and the subset size; returns the selected row indices.
 - **select_from_band(df, n, features, seed_rng)** — applies the greedy selection to one band: normalises the chosen geometry features to [0, 1], runs greedy_maxmin, and returns the selected rows.
 - **chk(cond, msg)** — pass/fail assertion helper used to verify the combined selection meets the band and tier requirements.
 
-**Main code walkthrough**
+#### Main Code
 
 - The main code loads the pipeline outputs, builds the eligible pool (valid STL and valid QProp prediction), selects Band 0 from the near-boundary non-liftoff window and Band 1 across the four h_max tiers, validates the combined subset, visualises its design-space coverage, saves the selection tables and copies the selected STLs to `representative_stl/`.
 - **4.1 Load Data and Build the Eligible Pool**
@@ -514,9 +557,13 @@ Selects a single unified subset of **100 propellers** for physical validation. E
 - **4.6 Save Outputs**
 - **4.7 Copy Selected STLs** — Copies the STL files of the 100 selected propellers into `representative_stl/` for printing and testing. The folder is cleared first so it always matches the current selection.
 
-### NB8 — `8_visualization.ipynb` · Design-Space and Pipeline Visualisation
+### 7.9 NB8 — `8_visualization.ipynb` · Design-Space and Pipeline Visualisation
+
+#### Purpose
 
 Visualises the propeller design space and every stage of the characterisation pipeline. Each section is self-contained: it loads its own CSV from `csv/` and is skipped gracefully when that file is absent. All figures are written as PNG into one tree, `plots/`, with one subfolder per pipeline stage (`plots/nb1/` … `plots/nb9/`): the per-stage diagnostic figures and the high-resolution (300 dpi) single-concept results figures used in the thesis, including the validation figures — which read the tables NB9 saves and are skipped gracefully until NB9 has run. This notebook also generates the two illustrative physics figures of the thesis (the representative low-Reynolds airfoil polar reconstructed from the pipeline's own QProp coefficient fit, and a single simulated free-flight trajectory integrated with exactly the NB6 equations of motion) and recomputes the spin-retention curve — the fraction of the target RPM the propeller still carries at the release instant, read directly from the raw launcher traces — writing `csv/06b_release_retention_curve_recomputed.csv` alongside its figure.
+
+#### Inputs and Outputs
 
 **Inputs:** all pipeline CSVs in `csv/` (NB1–NB7 outputs, the NB9 validation tables when present, and the cleaned launcher runs in `utils/results/*_cleaned/` for the retention curve)
 
@@ -527,7 +574,7 @@ Visualises the propeller design space and every stage of the characterisation pi
 - `plots/nb1/ … plots/nb9/` — all PNG figures, one folder per stage
 - `csv/06b_release_retention_curve_recomputed.csv` — per-target-RPM retention median/IQR. Columns: `target_rpm`, `retention_median`, `retention_q25`, `retention_q75`, `n_cells`, `n_confident`, `reported`, `peak_ratio_median`
 
-**Functions**
+#### Functions
 
 **Shared helpers**
 
@@ -579,7 +626,7 @@ Visualises the propeller design space and every stage of the characterisation pi
 - **release_rpm(trace, target)** — locates the release instant as the joint onset where the RPM leaves its spun-up plateau and the height starts a sustained climb; returns (retention = rpm at release / target, rpm at release, plateau, confidence flag). Non-aligned cells are flagged low-confidence rather than silently included.
 - **fig_flight_retention_curve()** — processes every PASS trace, writes `csv/06b_release_retention_curve_recomputed.csv` (per-target median/IQR, only targets with enough confident cells reported), and saves the retention figure.
 
-**Main code walkthrough**
+#### Main Code
 
 - One section per pipeline stage: LHS coverage, radial blade-shape envelope, STL/mass/inertia distributions, XFoil polar quality, QProp performance and operating surfaces, flight dynamics (aero vs release-corrected), representative-subset coverage, the full-pipeline correlation matrix, and finally the high-resolution results figures.
 - **4.1 NB1 — Geometry Parameter Distributions and Correlation** — LHS sampling should give flat (uniform) marginals and near-zero off-diagonal correlation.
@@ -592,9 +639,13 @@ Visualises the propeller design space and every stage of the characterisation pi
 - **4.8 Full-Pipeline Correlation Across Stages**
 - **4.9 High-Resolution Results Figures** — Regenerates every results-chapter figure as a standalone, high-resolution, single-concept 300-dpi PNG (each into the `plots/nb<N>/` folder of the stage it documents): the generation-stage balance and radial evolution, the aerodynamic coverage set, the QProp operating surfaces of the reference propeller, the representative-selection coverage, the illustrative low-Reynolds polar (Figure 2 of the thesis), the single simulated trajectory (Figure 8), the full validation figure set (mass, inertia, the four height scatters, height-vs-RPM, liftoff accuracy, kick evidence, confidence-vs-error, ranking-vs-RPM — these read the tables NB9 saves and are skipped with a notice until NB9 has run), and the spin-retention curve recomputed from the raw launcher traces (which also writes `csv/06b_release_retention_curve_recomputed.csv`).
 
-### NB9 — `9_validation.ipynb` · Validation (Mass, Inertia, Simulation)
+### 7.10 NB9 — `9_validation.ipynb` · Validation (Mass, Inertia, Simulation)
+
+#### Purpose
 
 The full validation of the pipeline against physical measurements, in three stages. **Stage 1 (mass):** STL-predicted mass versus the precision-scale measurement, for every measured propeller. **Stage 2 (inertia):** STL-predicted spin-axis inertia versus the trifilar-pendulum measurement, raw and regression-corrected. **Stage 3 (flight):** the simulated peak flight height — both the aero-only NB6 prediction and the release-corrected NB6b prediction — versus the free-flight launcher, over all 30 flight-tested propellers (the 20 tested representative props plus the 10 recovered validation props whose `val_` outputs come from NB3–NB6b). Only PASS-flagged, spike-filtered launcher runs are used; cells that reached the string ceiling are right-censored and excluded from the quantitative metrics but scored separately for qualitative agreement. The notebook closes by assembling the **validated dataset** (`csv/dataset_validated.csv`, the measured counterpart of the full simulation dataset from NB6b). The high-resolution results figures are generated centrally by NB8.
+
+#### Inputs and Outputs
 
 **Inputs:** `utils/00_measured_mass_inertia.csv` and `utils/00_validation_geometry.csv` (via `utils/measurements.py`), `stl/` meshes, the cleaned launcher runs in `utils/results/*_cleaned/`, `csv/07_selected.csv`, the per-RPM flight predictions `csv/06_flight_dynamics_*rpm.csv`, `csv/06b_flight_dynamics_release_*rpm.csv` and their `val_` equivalents, `csv/06b_release_retention_curve.csv`, `csv/05_qprop_sweep.csv.gz`
 
@@ -606,7 +657,7 @@ The full validation of the pipeline against physical measurements, in three stag
 - `csv/validation_sim_ranking_per_config.csv` — one row per tested prop. Columns: `config_id`, `blade_count`, `n_rpm`, `spearman`, `kendall`, `mae_m`
 - `csv/dataset_validated.csv` — 222 rows over 30 tested props — same schema as dataset_full_simulation plus measured columns
 
-**Functions**
+#### Functions
 
 **Reporting and physics helpers**
 
@@ -640,7 +691,7 @@ The full validation of the pipeline against physical measurements, in three stag
 - **make_grid(df, value_col)** — pivots sweep rows into a plot-ready surface grid.
 - **cell_is_clean(sweep_all, config_id, launch_rpm) / void_block(frame, sim_col, target_col)** — the void-free-surface subset check and its metric block.
 
-**Main code walkthrough**
+#### Main Code
 
 - The main code fits the print density on the measured props, runs the mass and inertia validations, builds the matched simulation-vs-measurement table over all 30 tested props, computes the global, per-RPM and per-config readings with the leave-one-prop-out cross-validation of the release correction, checks the censored cells, the void-free subset and the liftoff classification, saves the validation tables, generates the diagnostic figures, and assembles the validated dataset.
 - **4.1 Load Measurements and Fit the Print Density** — Loads the measured mass and trifilar period for every bench-tested prop (through `utils/measurements.py`), converts the period into a measured inertia, reads each prop's STL shape, fits the single effective SLS print density that maps STL volume to mass, and refits the linear inertia correction on this notebook's own validation props so the corrected curve is self-consistent.

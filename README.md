@@ -5,6 +5,10 @@
 Bachelor Thesis · IDEAL Lab (Chair of Artificial Intelligence in Engineering Design) · ETH Zürich
 Author: Héctor Fernández Pinacho · Supervisors: Prof. Dr. Mark Fuge, Arthur Drake
 
+<p align="center">
+  <img src="propeller.png" alt="3D-printed SLS nylon propeller from the characterised design family" width="600">
+</p>
+
 ---
 
 ## Contents

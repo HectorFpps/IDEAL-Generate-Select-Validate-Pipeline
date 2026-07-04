@@ -20,6 +20,16 @@ Author: Héctor Fernández Pinacho · Supervisors: Prof. Dr. Mark Fuge, Arthur D
 5. [Running the Pipeline](#5-running-the-pipeline)
 6. [Pipeline DAG](#6-pipeline-dag)
 7. [Notebook Deep Dive](#7-notebook-deep-dive)
+   - [7.1 NB1 — 1_lhs_sampling.ipynb · LHS Geometrical Parameter Sampling](#71-nb1--1_lhs_samplingipynb--lhs-geometrical-parameter-sampling)
+   - [7.2 NB2 — 2_stl_generation.ipynb · STL Generation](#72-nb2--2_stl_generationipynb--stl-generation)
+   - [7.3 NB3 — 3_geometry_metadata.ipynb · Geometry Metadata](#73-nb3--3_geometry_metadataipynb--geometry-metadata)
+   - [7.4 NB4 — 4_xfoil_simulation.ipynb · XFoil Aerodynamic Polar Generation](#74-nb4--4_xfoil_simulationipynb--xfoil-aerodynamic-polar-generation)
+   - [7.5 NB5 — 5_qprop_simulation.ipynb · QProp Performance Sweep](#75-nb5--5_qprop_simulationipynb--qprop-performance-sweep)
+   - [7.6 NB6 — 6_flight_dynamics.ipynb · Flight Dynamics](#76-nb6--6_flight_dynamicsipynb--flight-dynamics)
+   - [7.7 NB6b — 6b_flight_dynamics_release.ipynb · Flight Dynamics with Screw-Release Model](#77-nb6b--6b_flight_dynamics_releaseipynb--flight-dynamics-with-screw-release-model)
+   - [7.8 NB7 — 7_representative_selection.ipynb · Representative Propeller Selection](#78-nb7--7_representative_selectionipynb--representative-propeller-selection)
+   - [7.9 NB8 — 8_visualization.ipynb · Design-Space and Pipeline Visualisation](#79-nb8--8_visualizationipynb--design-space-and-pipeline-visualisation)
+   - [7.10 NB9 — 9_validation.ipynb · Validation (Mass, Inertia, Simulation)](#710-nb9--9_validationipynb--validation-mass-inertia-simulation)
 8. [Data Guide](#8-data-guide)
 9. [Browsing the Results](#9-browsing-the-results)
 
@@ -175,16 +185,6 @@ NB3–NB6b additionally end with a *Validation Subset* pass that re-runs the ide
 
 Each notebook follows the same structure — **1. Imports · 2. Configuration · 3. Function Definitions · 4. Main Code** — and ends with pass/fail checks on its own outputs. The subsections below document, for every notebook: what it does, what its inputs and outputs look like, every function it defines, and what each block of the main code does.
 
-- [7.1 NB1 — 1_lhs_sampling.ipynb · LHS Geometrical Parameter Sampling](#71-nb1--1_lhs_samplingipynb--lhs-geometrical-parameter-sampling)
-- [7.2 NB2 — 2_stl_generation.ipynb · STL Generation](#72-nb2--2_stl_generationipynb--stl-generation)
-- [7.3 NB3 — 3_geometry_metadata.ipynb · Geometry Metadata](#73-nb3--3_geometry_metadataipynb--geometry-metadata)
-- [7.4 NB4 — 4_xfoil_simulation.ipynb · XFoil Aerodynamic Polar Generation](#74-nb4--4_xfoil_simulationipynb--xfoil-aerodynamic-polar-generation)
-- [7.5 NB5 — 5_qprop_simulation.ipynb · QProp Performance Sweep](#75-nb5--5_qprop_simulationipynb--qprop-performance-sweep)
-- [7.6 NB6 — 6_flight_dynamics.ipynb · Flight Dynamics](#76-nb6--6_flight_dynamicsipynb--flight-dynamics)
-- [7.7 NB6b — 6b_flight_dynamics_release.ipynb · Flight Dynamics with Screw-Release Model](#77-nb6b--6b_flight_dynamics_releaseipynb--flight-dynamics-with-screw-release-model)
-- [7.8 NB7 — 7_representative_selection.ipynb · Representative Propeller Selection](#78-nb7--7_representative_selectionipynb--representative-propeller-selection)
-- [7.9 NB8 — 8_visualization.ipynb · Design-Space and Pipeline Visualisation](#79-nb8--8_visualizationipynb--design-space-and-pipeline-visualisation)
-- [7.10 NB9 — 9_validation.ipynb · Validation (Mass, Inertia, Simulation)](#710-nb9--9_validationipynb--validation-mass-inertia-simulation)
 
 ### 7.1 NB1 — `1_lhs_sampling.ipynb` · LHS Geometrical Parameter Sampling
 

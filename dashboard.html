@@ -1,0 +1,1437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IDEAL · Propeller Configuration Browser</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.26.0/plotly.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+:root{
+  --bg:#f6f7f9; --panel:#ffffff; --border:#e3e6ea; --text:#1c2330; --text2:#6b7686;
+  --accent:#2563eb; --accent-soft:#eff4ff; --green:#0e9f6e; --green-soft:#e6f7f1;
+  --orange:#d97706; --red:#dc2626; --mono:'SF Mono',ui-monospace,Menlo,Consolas,monospace;
+  --radius:10px; --shadow:0 1px 2px rgba(16,24,40,.05);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font:14px/1.5 -apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text)}
+header{background:var(--panel);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;gap:20px;flex-wrap:wrap;position:sticky;top:0;z-index:20}
+header h1{font-size:17px;font-weight:700}
+#stats{margin-left:auto;color:var(--text2);font-size:12.5px}
+#stats b{color:var(--text)}
+nav{display:flex;gap:4px;background:var(--bg);padding:3px;border-radius:9px}
+nav button{padding:6px 16px;border:none;background:transparent;border-radius:7px;font-size:13px;font-weight:600;color:var(--text2);cursor:pointer}
+nav button.on{background:var(--panel);color:var(--accent);box-shadow:var(--shadow)}
+main{max-width:1560px;margin:0 auto;padding:18px 24px 70px}
+.tab{display:none}
+.tab.on{display:block}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow)}
+.card h2{font-size:13px;font-weight:700;padding:12px 16px;border-bottom:1px solid var(--border);color:var(--text2);text-transform:uppercase;letter-spacing:.4px;display:flex;align-items:center;gap:10px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+@media(max-width:1200px){.grid4{grid-template-columns:1fr 1fr}}
+.chart{min-height:230px;padding:4px}
+.mt{margin-top:16px}
+.controls{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px}
+.controls label{font-size:11.5px;color:var(--text2);display:flex;flex-direction:column;gap:3px;font-weight:600}
+.controls input,.controls select{padding:6px 9px;border:1px solid var(--border);border-radius:7px;background:var(--panel);font-size:13px;color:var(--text);min-width:80px}
+.controls input:focus,.controls select:focus{outline:2px solid var(--accent-soft);border-color:var(--accent)}
+.chk{flex-direction:row !important;align-items:center;gap:6px !important;padding-bottom:8px}
+.btn{padding:7px 14px;border:1px solid var(--border);border-radius:7px;background:var(--panel);cursor:pointer;color:var(--text);font-size:12.5px;font-weight:600}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+#filters{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
+.frow{display:flex;gap:8px;align-items:center;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:7px 10px;flex-wrap:wrap}
+.frow select,.frow input{padding:5px 8px;border:1px solid var(--border);border-radius:6px;font-size:12.5px}
+.frow input{width:110px}
+.frow .rm{margin-left:auto;border:none;background:transparent;color:var(--red);cursor:pointer;font-size:15px}
+.frow .hint{font-size:11px;color:var(--text2)}
+.layout{display:grid;grid-template-columns:minmax(560px,1fr) minmax(400px,560px);gap:16px;align-items:start}
+@media (max-width:1150px){.layout{grid-template-columns:1fr}}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:7px 10px;text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+thead th{color:var(--text2);font-weight:600;font-size:11.5px;border-bottom:1px solid var(--border);cursor:pointer;user-select:none;position:sticky;top:0;background:var(--panel);z-index:1}
+thead th:hover{color:var(--accent)}
+tbody tr{border-bottom:1px solid #f0f2f5;cursor:pointer}
+tbody tr:hover{background:var(--accent-soft)}
+tbody tr.active{background:var(--accent-soft);box-shadow:inset 3px 0 0 var(--accent)}
+.badge{display:inline-block;font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:99px;vertical-align:1px}
+.badge.val{background:var(--green-soft);color:var(--green)}
+.badge.fly{background:var(--accent-soft);color:var(--accent)}
+.badge.nofly{background:#f3f4f6;color:var(--text2)}
+.pager{display:flex;gap:8px;align-items:center;justify-content:center;padding:10px;color:var(--text2);font-size:12.5px}
+.pager button{padding:4px 12px;border:1px solid var(--border);border-radius:7px;background:var(--panel);cursor:pointer;color:var(--text)}
+.pager button:disabled{opacity:.4;cursor:default}
+#detail{position:sticky;top:74px;max-height:calc(100vh - 92px);overflow-y:auto}
+.detail-head{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--border)}
+.detail-head .cid{font:700 20px var(--mono)}
+.detail-head button{margin-left:auto;padding:5px 12px;border:1px solid var(--accent);color:var(--accent);background:var(--panel);border-radius:7px;cursor:pointer;font-size:12.5px;font-weight:600}
+.detail-head button:hover{background:var(--accent-soft)}
+#stlBox{position:relative;height:250px;background:linear-gradient(160deg,#f1f4f9,#e8edf5);border-bottom:1px solid var(--border)}
+#stlBox canvas{display:block}
+#stlMsg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--text2);font-size:12.5px;text-align:center;padding:0 30px;pointer-events:none}
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:1px;background:var(--border)}
+.pcell{background:var(--panel);padding:8px 12px}
+.pcell .k{font-size:10.5px;color:var(--text2);text-transform:uppercase;letter-spacing:.3px}
+.pcell .v{font:600 13.5px var(--mono)}
+.grouplabel{padding:9px 16px 4px;font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.5px}
+.dual td.meas{color:var(--green);font-weight:600}
+.dual td.err{font-family:var(--mono);font-size:12px}
+.err.good{color:var(--green)} .err.mid{color:var(--orange)} .err.bad{color:var(--red)}
+.small{font-size:11.5px;color:var(--text2);padding:6px 16px 12px}
+svg.spark{display:block;margin:4px 16px 8px}
+.legend{display:flex;gap:14px;padding:0 16px 10px;font-size:11.5px;color:var(--text2);flex-wrap:wrap}
+.legend .dot{display:inline-block;width:9px;height:9px;border-radius:99px;margin-right:4px;vertical-align:-1px}
+#compareBar{position:fixed;bottom:0;left:0;right:0;background:var(--panel);border-top:1px solid var(--border);padding:9px 24px;display:none;align-items:center;gap:10px;z-index:30;box-shadow:0 -4px 16px rgba(16,24,40,.06)}
+#compareBar .pill{background:var(--accent-soft);color:var(--accent);font:600 12.5px var(--mono);padding:3px 10px;border-radius:99px;cursor:pointer}
+#compareBar .pill:hover{text-decoration:line-through}
+#compareBar button{padding:6px 16px;border-radius:7px;border:none;background:var(--accent);color:#fff;font-weight:600;cursor:pointer}
+#compareBar .clear{background:transparent;color:var(--text2);border:1px solid var(--border)}
+#overlay{position:fixed;inset:0;background:rgba(15,23,42,.45);display:none;z-index:40;padding:4vh 4vw;overflow:auto}
+#compareCard{max-width:1250px;margin:0 auto;background:var(--panel);border-radius:var(--radius);overflow:hidden}
+#compareCard .head{display:flex;align-items:center;padding:14px 20px;border-bottom:1px solid var(--border)}
+#compareCard .head h2{font-size:15px}
+#compareCard .head button{margin-left:auto;border:none;background:transparent;font-size:20px;cursor:pointer;color:var(--text2)}
+#compareTable td.diff{background:#fff7ed}
+#compareTable td,#compareTable th{border-bottom:1px solid #f0f2f5}
+#compareTable th.rowname{color:var(--text2);font-weight:600;font-size:12px;text-align:left}
+#error{display:none;max-width:760px;margin:60px auto;background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:28px}
+#error code{background:var(--bg);padding:2px 7px;border-radius:5px;font-family:var(--mono);font-size:12.5px}
+.muted{color:var(--text2)}
+.note{font-size:12px;color:var(--text2);padding:10px 16px}
+.grid6{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;padding:10px}
+@media(max-width:1200px){.grid6{grid-template-columns:repeat(3,1fr)}}
+.minichart{min-height:130px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+@media(max-width:1200px){.grid3{grid-template-columns:1fr}}
+.afgrid{display:flex;gap:8px;flex-wrap:wrap;padding:10px 16px 12px}
+.afcell{width:118px;border:1px solid var(--border);border-radius:8px;padding:6px 8px;cursor:pointer;background:var(--panel);transition:border-color .12s}
+.afcell:hover{border-color:var(--accent)}
+.afcell svg{display:block;width:100%;height:34px}
+.afcell .nm{font:600 11px var(--mono);color:var(--text)}
+.afcell .st{font-size:10px;color:var(--text2)}
+.afcell .tier{display:inline-block;font-size:9.5px;font-weight:700;padding:0 6px;border-radius:99px;margin-top:2px}
+.tier.viscous{background:var(--green-soft);color:var(--green)}
+.tier.near{background:var(--accent-soft);color:var(--accent)}
+.tier.fallback{background:#fef3c7;color:var(--orange)}
+.afcell.failed{border-color:#fecaca;background:#fef2f2}
+.afcell.failed .nm{color:var(--red)}
+.tier.failed{background:#fee2e2;color:var(--red)}
+#afOverlay{position:fixed;inset:0;background:rgba(15,23,42,.45);display:none;z-index:50;padding:5vh 5vw;overflow:auto}
+#afCard{max-width:900px;margin:0 auto;background:var(--panel);border-radius:var(--radius);overflow:hidden}
+#afCard .head{display:flex;align-items:center;gap:12px;padding:14px 20px;border-bottom:1px solid var(--border)}
+#afCard .head h2{font-size:15px;font-family:var(--mono)}
+#afCard .head button{margin-left:auto;border:none;background:transparent;font-size:20px;cursor:pointer;color:var(--text2)}
+#afBody{padding:6px 0 18px}
+.afmeta{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:1px;background:var(--border);margin:0 20px;border-radius:8px;overflow:hidden}
+.afpolars{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:14px 20px 0}
+@media(max-width:800px){.afpolars{grid-template-columns:1fr}}
+.srcnote{margin:12px 20px 0;padding:10px 14px;border-radius:8px;font-size:12.5px}
+.srcnote.viscous{background:var(--green-soft);color:#065f46}
+.srcnote.near{background:var(--accent-soft);color:#1e40af}
+.srcnote.fallback{background:#fef3c7;color:#92400e}
+.srcnote.failed{background:#fee2e2;color:#991b1b}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Propeller Configuration Browser</h1>
+  <nav>
+    <button data-tab="overview" class="on">Overview</button>
+    <button data-tab="browse">Browse</button>
+    <button data-tab="subset">Representative subset</button>
+  </nav>
+  <span id="stats"></span>
+</header>
+
+<div id="error">
+  <h2 style="margin-bottom:10px">Could not load the datasets</h2>
+  <p class="muted" style="margin-bottom:12px">This page reads <code>csv/dataset_full_simulation.csv</code>, <code>csv/dataset_validated.csv</code> and <code>csv/07_selected.csv</code>. Browsers block local file access, so start a small web server in the pipeline folder and open the page through it:</p>
+  <p><code>python -m http.server 8000</code> &nbsp;→&nbsp; <code>http://localhost:8000/dashboard.html</code></p>
+</div>
+
+<main id="app" style="display:none">
+
+  <section class="tab on" id="tab-overview">
+    <div class="controls">
+      <label>Launch RPM (all charts)
+        <select id="rpmSelOv"></select>
+      </label>
+    </div>
+    <div class="card">
+      <h2>Geometric parameters — sampled distributions (all 17)</h2>
+      <div class="grid6" id="ov-geo"></div>
+    </div>
+    <div class="grid3 mt">
+      <div class="card"><h2>Radial evolution — chord [mm]</h2><div class="chart" id="ov-radial-chord"></div></div>
+      <div class="card"><h2>Radial evolution — twist [°]</h2><div class="chart" id="ov-radial-twist"></div></div>
+      <div class="card"><h2>Radial evolution — thickness [%]</h2><div class="chart" id="ov-radial-thick"></div></div>
+    </div>
+    <div class="grid4 mt">
+      <div class="card"><h2>Mass</h2><div class="chart" id="ov-mass"></div></div>
+      <div class="card"><h2>Inertia Izz</h2><div class="chart" id="ov-izz"></div></div>
+      <div class="card"><h2>Static thrust</h2><div class="chart" id="ov-thrust"></div></div>
+      <div class="card"><h2>Static torque</h2><div class="chart" id="ov-torque"></div></div>
+    </div>
+    <div class="grid4 mt">
+      <div class="card"><h2>Figure of merit (max)</h2><div class="chart" id="ov-fom"></div></div>
+      <div class="card"><h2>T/W at launch</h2><div class="chart" id="ov-tw"></div></div>
+      <div class="card"><h2>Aero peak height</h2><div class="chart" id="ov-haero"></div></div>
+      <div class="card"><h2>Corrected peak height</h2><div class="chart" id="ov-hcorr"></div></div>
+    </div>
+    <div class="grid4 mt">
+      <div class="card"><h2>Flight time</h2><div class="chart" id="ov-ftime"></div></div>
+      <div class="card"><h2>Polar confidence</h2><div class="chart" id="ov-conf"></div></div>
+      <div class="card"><h2>Max climb speed</h2><div class="chart" id="ov-vmax"></div></div>
+      <div class="card"><h2>Static shaft power</h2><div class="chart" id="ov-pshaft"></div></div>
+    </div>
+    <div class="grid2 mt">
+      <div class="card"><h2>Thrust-to-weight vs peak height h</h2><div class="chart" id="ov-scatter" style="min-height:340px"></div></div>
+      <div class="card"><h2>Median height vs launch RPM</h2><div class="chart" id="ov-hrpm" style="min-height:340px"></div></div>
+    </div>
+  </section>
+
+  <section class="tab" id="tab-browse">
+    <div class="controls">
+      <label>Search config ID
+        <input id="q" type="text" placeholder="e.g. 885" />
+      </label>
+      <label>Launch RPM (displayed)
+        <select id="rpmSel"></select>
+      </label>
+      <label class="chk"><input id="flyOnly" type="checkbox"> lifts off</label>
+      <label class="chk"><input id="valOnly" type="checkbox"> validated only</label>
+      <label class="chk"><input id="selOnly" type="checkbox"> representative subset</label>
+      <button class="btn" id="addFilter">+ add filter</button>
+      <label style="margin-left:auto">Rows per page
+        <select id="pageSize"><option>25</option><option selected>50</option><option>100</option></select>
+      </label>
+    </div>
+    <div id="filters"></div>
+    <div class="layout">
+      <div class="card">
+        <h2 id="listTitle">Configurations</h2>
+        <div style="overflow-x:auto;max-height:calc(100vh - 290px);overflow-y:auto">
+          <table id="listTable"><thead></thead><tbody></tbody></table>
+        </div>
+        <div class="pager">
+          <button id="prevPg">‹ prev</button>
+          <span id="pgInfo"></span>
+          <button id="nextPg">next ›</button>
+        </div>
+      </div>
+      <div class="card" id="detail">
+        <div class="small" style="padding:24px 20px" id="detailEmpty">Select a configuration to see its 3-D print geometry, all parameters, its performance across the RPM range, and — for physically tested props — the measured values with percent errors next to the simulation.</div>
+        <div id="detailBody" style="display:none"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="tab" id="tab-subset">
+    <div class="grid2">
+      <div class="card"><h2>PCA of the geometry space — PC1 × PC2 <span class="muted" id="pcaVar12"></span></h2><div class="chart" id="pca12" style="min-height:400px"></div></div>
+      <div class="card"><h2>PCA of the geometry space — PC1 × PC3 <span class="muted" id="pcaVar13"></span></h2><div class="chart" id="pca13" style="min-height:400px"></div></div>
+    </div>
+    <div class="grid2 mt">
+      <div class="card"><h2>Radius × blade count</h2><div class="chart" id="cov1" style="min-height:340px"></div></div>
+      <div class="card"><h2>Mid chord × outer chord</h2><div class="chart" id="cov2" style="min-height:340px"></div></div>
+    </div>
+    <div class="card mt">
+      <h2>Explained variance per principal component</h2>
+      <div class="chart" id="pcaScree" style="min-height:220px"></div>
+      <div class="note">PCA computed live over the standardised 17 geometry parameters of all 5000 designs. Grey = full pool, red = 100 selected representative designs, green diamonds = 30 physically flight-tested props. Good coverage = the red/green points span the grey cloud rather than clustering.</div>
+    </div>
+  </section>
+
+</main>
+
+<div id="afOverlay">
+  <div id="afCard">
+    <div class="head"><h2 id="afTitle"></h2><span id="afTierChip"></span><button id="afClose">✕</button></div>
+    <div id="afBody"></div>
+  </div>
+</div>
+
+<div id="compareBar">
+  <span class="muted" style="font-size:12.5px">Compare:</span>
+  <span id="comparePills"></span>
+  <button id="openCompare">Compare side by side</button>
+  <button class="clear" id="clearCompare">Clear</button>
+</div>
+
+<div id="overlay">
+  <div id="compareCard">
+    <div class="head"><h2>Side-by-side comparison</h2><button id="closeCompare">✕</button></div>
+    <div style="overflow-x:auto;max-height:80vh;overflow-y:auto">
+      <table id="compareTable"></table>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+/* Adaptive by construction: columns come from the CSV headers, RPM levels
+   and validated/selected props from the data — new rows appear automatically. */
+
+const SIM_CSV = 'csv/dataset_full_simulation.csv';
+const VAL_CSV = 'csv/dataset_validated.csv';
+const SEL_CSV = 'csv/07_selected.csv';
+const POLARS_CSV = 'csv/04_xfoil_polars.csv';
+const VAL_POLARS_CSV = 'csv/val_04_xfoil_polars.csv';
+const QPROP_CSV = 'csv/05_qprop_results.csv';
+const STATIONS = ['hub', 's1', 's2', 's3', 's4', 's5', 's6'];
+const HUB_RE_THRESHOLD = 15000;
+const TIER_INFO = {
+  viscous: { label: 'Viscous solution', cls: 'viscous',
+    desc: 'Converged viscous XFoil polar solved directly at the target Reynolds number of this station.' },
+  viscous_near_re: { label: 'Closest Re match', cls: 'near',
+    desc: 'No converged polar at the target Reynolds number; the closest converged cached Reynolds number was used instead and lift/drag are rescaled through the QProp REexp Reynolds-scaling exponent.' },
+  hub_uses_s1: { label: 'Other fallback', cls: 'fallback',
+    desc: 'Other fallback: the hub Reynolds number is too low for XFoil to converge, so the hub station reuses the s1 polar coefficients (evaluated at the hub Reynolds number). This is the standard hub fallback of the pipeline.' },
+  failed: { label: 'Discarded', cls: 'failed',
+    desc: 'Discarded: XFoil produced no converged polar for this airfoil at the target Reynolds number, and no usable cached polar of the same NACA section existed at any nearby Reynolds number. The station is excluded from the QProp blade model and neighbouring stations are interpolated across it, lowering the polar confidence score.' },
+};
+const STL_DIRS = ['stl', 'representative_stl', 'validation_stl'];
+
+const GEO_COLS = ['radius_mm','ring_height_mm','ring_thickness_mm','blade_count',
+  'inner_thickness_pct','inner_max_pos','inner_camber','inner_chord_mm','inner_angle_deg',
+  'mid_radial_pos','mid_chord_mm','mid_angle_deg',
+  'outer_thickness_pct','outer_max_pos','outer_camber','outer_chord_mm','outer_angle_deg'];
+
+const GEOMETRY_GROUPS = [
+  ['General',  ['radius_mm','blade_count','ring_height_mm','ring_thickness_mm']],
+  ['Inner profile', ['inner_chord_mm','inner_angle_deg','inner_thickness_pct','inner_camber','inner_max_pos']],
+  ['Mid profile',   ['mid_radial_pos','mid_chord_mm','mid_angle_deg']],
+  ['Outer profile', ['outer_chord_mm','outer_angle_deg','outer_thickness_pct','outer_camber','outer_max_pos']],
+  ['Mass & inertia',['mass_g','izz_kg_m2','frontal_area_drag_m2','blade_planform_m2','confidence_score']],
+];
+const PERF_COLS = ['T_static_N','Q_static_Nm','Pshaft_static_W','T_over_W','h_max_aero_m','h_max_m','flight_time_s','v_max_m_s','v_impact_m_s','rpm_at_impact'];
+const LABELS = {
+  radius_mm:'tip radius [mm]', blade_count:'blades', ring_height_mm:'ring height [mm]', ring_thickness_mm:'ring thick. [mm]',
+  inner_chord_mm:'chord [mm]', inner_angle_deg:'angle [deg]', inner_thickness_pct:'thickness [%]', inner_camber:'camber', inner_max_pos:'max-camber pos',
+  mid_radial_pos:'radial pos [r/R]', mid_chord_mm:'chord [mm]', mid_angle_deg:'angle [deg]',
+  outer_chord_mm:'chord [mm]', outer_angle_deg:'angle [deg]', outer_thickness_pct:'thickness [%]', outer_camber:'camber', outer_max_pos:'max-camber pos',
+  mass_g:'mass [g]', izz_kg_m2:'Izz [kg m2]', frontal_area_drag_m2:'frontal area [m2]', blade_planform_m2:'planform [m2]', confidence_score:'polar confidence',
+  T_static_N:'static thrust [N]', Q_static_Nm:'static torque [N m]', Pshaft_static_W:'shaft power [W]', T_over_W:'T/W',
+  h_max_aero_m:'h aero [m]', h_max_m:'h max [m]', flight_time_s:'flight time [s]', hover_time_s:'hover time [s]',
+  v_max_m_s:'v max [m/s]', v_impact_m_s:'v impact [m/s]', rpm_at_impact:'RPM at impact',
+};
+const PLOTLY_CFG = { displayModeBar: false, responsive: true };
+const PLOTLY_LAYOUT = {
+  margin: {l: 45, r: 12, t: 8, b: 36}, paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+  font: {size: 11, color: '#4b5563'}, bargap: 0.05,
+  xaxis: {gridcolor: '#eef0f3', zerolinecolor: '#e3e6ea'}, yaxis: {gridcolor: '#eef0f3', zerolinecolor: '#e3e6ea'},
+};
+
+const state = {
+  configs: new Map(),
+  validated: new Map(),
+  selectedSubset: new Set(),
+  rpms: [],
+  rpm: null,
+  sortCol: 'config_id',
+  sortDir: 1,
+  page: 0,
+  selected: null,
+  compare: [],
+  filters: [],
+  filterCols: [],
+  overviewDrawn: false,
+  subsetDrawn: false,
+  polars: new Map(),
+  fom: new Map(),
+};
+
+function label(col) { return LABELS[col] || col.replaceAll('_', ' '); }
+
+function fmt(v) {
+  if (v === null || v === undefined || v === '' || (typeof v === 'number' && !isFinite(v))) return '–';
+  if (typeof v === 'boolean') return v ? 'yes' : 'no';
+  if (typeof v !== 'number') return String(v);
+  if (Number.isInteger(v) && Math.abs(v) < 1e7) return String(v);
+  const a = Math.abs(v);
+  if (a !== 0 && (a < 0.001 || a >= 1e6)) return v.toExponential(2);
+  if (a < 0.1) return v.toFixed(4);
+  if (a < 10) return v.toFixed(3);
+  return v.toFixed(2);
+}
+
+function pctErr(sim, meas) {
+  if (!isFinite(sim) || !isFinite(meas) || meas === 0) return null;
+  return (sim - meas) / meas * 100;
+}
+function pctCell(p) {
+  if (p === null) return '<td class="err">–</td>';
+  const cls = Math.abs(p) < 10 ? 'good' : Math.abs(p) < 30 ? 'mid' : 'bad';
+  return '<td class="err ' + cls + '">' + (p >= 0 ? '+' : '') + p.toFixed(1) + '%</td>';
+}
+
+function loadCsv(path) {
+  return new Promise(function (resolve, reject) {
+    Papa.parse(path, {
+      download: true, header: true, dynamicTyping: true, skipEmptyLines: true,
+      complete: function (res) {
+        if (!res.data || !res.data.length) { reject(new Error('empty: ' + path)); return; }
+        for (const row of res.data) {
+          for (const key in row) {
+            if (row[key] === 'True') row[key] = true;
+            else if (row[key] === 'False') row[key] = false;
+          }
+        }
+        resolve(res.data);
+      },
+      error: reject,
+    });
+  });
+}
+
+function ingest(simRows, valRows, selRows) {
+  for (const row of simRows) {
+    if (row.config_id === null || row.config_id === undefined) continue;
+    let entry = state.configs.get(row.config_id);
+    if (!entry) { entry = { geo: row, perRpm: new Map() }; state.configs.set(row.config_id, entry); }
+    entry.perRpm.set(row.rpm_launch, row);
+  }
+  const rpmSet = new Set();
+  for (const entry of state.configs.values())
+    for (const rpm of entry.perRpm.keys()) rpmSet.add(rpm);
+  state.rpms = Array.from(rpmSet).sort(function (a, b) { return a - b; });
+  state.rpm = state.rpms.includes(4000) ? 4000 : state.rpms[0];
+
+  for (const row of (valRows || [])) {
+    if (row.config_id === null || row.config_id === undefined) continue;
+    let m = state.validated.get(row.config_id);
+    if (!m) { m = new Map(); state.validated.set(row.config_id, m); }
+    m.set(row.rpm_launch, row);
+  }
+  for (const row of (selRows || []))
+    if (row.config_id !== null && row.config_id !== undefined) state.selectedSubset.add(row.config_id);
+
+  const sample = simRows[0];
+  state.filterCols = [];
+  for (const col of Object.keys(sample))
+    if (col !== 'data_source' && typeof sample[col] === 'number') state.filterCols.push(col);
+}
+
+function valueOf(cid, col) {
+  const entry = state.configs.get(cid);
+  if (!entry) return null;
+  const row = entry.perRpm.get(state.rpm) || {};
+  if (col === 'config_id') return cid;
+  if (col in row && row[col] !== null && row[col] !== '') return row[col];
+  return entry.geo[col];
+}
+
+/* generic filter system */
+
+function addFilterRow(col, min, max) {
+  state.filters.push({ col: col || 'h_max_aero_m', min: min !== undefined ? min : '', max: max !== undefined ? max : '' });
+  renderFilters();
+  renderList();
+}
+
+function renderFilters() {
+  const box = document.getElementById('filters');
+  let h = '';
+  state.filters.forEach(function (f, i) {
+    let opts = '';
+    for (const col of state.filterCols)
+      opts += '<option value="' + col + '"' + (f.col === col ? ' selected' : '') + '>' + label(col) + '</option>';
+    h += '<div class="frow" data-i="' + i + '">'
+       + '<select class="fcol">' + opts + '</select>'
+       + '<span class="hint">min</span><input class="fmin" type="number" step="any" value="' + f.min + '">'
+       + '<span class="hint">max</span><input class="fmax" type="number" step="any" value="' + f.max + '">'
+       + '<span class="hint">(evaluated at the displayed RPM)</span>'
+       + '<button class="rm" title="remove">✕</button></div>';
+  });
+  box.innerHTML = h;
+  for (const row of box.querySelectorAll('.frow')) {
+    const i = parseInt(row.dataset.i, 10);
+    row.querySelector('.fcol').onchange = function (e) { state.filters[i].col = e.target.value; state.page = 0; renderList(); };
+    row.querySelector('.fmin').oninput = function (e) { state.filters[i].min = e.target.value; state.page = 0; renderList(); };
+    row.querySelector('.fmax').oninput = function (e) { state.filters[i].max = e.target.value; state.page = 0; renderList(); };
+    row.querySelector('.rm').onclick = function () { state.filters.splice(i, 1); renderFilters(); renderList(); };
+  }
+}
+
+function passesFilters(cid) {
+  for (const f of state.filters) {
+    const v = valueOf(cid, f.col);
+    if (v === null || v === undefined || (typeof v === 'number' && !isFinite(v))) return false;
+    if (f.min !== '' && !(v >= parseFloat(f.min))) return false;
+    if (f.max !== '' && !(v <= parseFloat(f.max))) return false;
+  }
+  return true;
+}
+
+/* list view */
+
+const LIST_COLS = ['config_id','radius_mm','blade_count','mass_g','T_over_W','h_max_aero_m','h_max_m','confidence_score'];
+
+function filteredIds() {
+  const q = document.getElementById('q').value.trim();
+  const flyOnly = document.getElementById('flyOnly').checked;
+  const valOnly = document.getElementById('valOnly').checked;
+  const selOnly = document.getElementById('selOnly').checked;
+  const out = [];
+  for (const [cid, entry] of state.configs) {
+    if (q !== '' && !String(cid).includes(q)) continue;
+    if (valOnly && !state.validated.has(cid)) continue;
+    if (selOnly && !state.selectedSubset.has(cid)) continue;
+    const row = entry.perRpm.get(state.rpm);
+    if (flyOnly && !(row && row.can_liftoff === true)) continue;
+    if (!passesFilters(cid)) continue;
+    out.push(cid);
+  }
+  const col = state.sortCol, dir = state.sortDir;
+  out.sort(function (a, b) {
+    let va = valueOf(a, col), vb = valueOf(b, col);
+    if (va === null || va === undefined || va === '' || Number.isNaN(va)) va = -Infinity;
+    if (vb === null || vb === undefined || vb === '' || Number.isNaN(vb)) vb = -Infinity;
+    return va < vb ? -dir : va > vb ? dir : 0;
+  });
+  return out;
+}
+
+function renderList() {
+  const ids = filteredIds();
+  const pageSize = parseInt(document.getElementById('pageSize').value, 10);
+  const nPages = Math.max(1, Math.ceil(ids.length / pageSize));
+  if (state.page >= nPages) state.page = nPages - 1;
+  const slice = ids.slice(state.page * pageSize, (state.page + 1) * pageSize);
+
+  const thead = document.querySelector('#listTable thead');
+  let h = '<tr>';
+  for (const col of LIST_COLS) {
+    const arrow = state.sortCol === col ? (state.sortDir === 1 ? ' ↑' : ' ↓') : '';
+    h += '<th data-col="' + col + '">' + label(col) + arrow + '</th>';
+  }
+  h += '<th></th></tr>';
+  thead.innerHTML = h;
+  for (const th of thead.querySelectorAll('th[data-col]')) {
+    th.onclick = function () {
+      const col = th.dataset.col;
+      if (state.sortCol === col) state.sortDir = -state.sortDir;
+      else { state.sortCol = col; state.sortDir = col === 'config_id' ? 1 : -1; }
+      renderList();
+    };
+  }
+
+  const tbody = document.querySelector('#listTable tbody');
+  let rows = '';
+  for (const cid of slice) {
+    const entry = state.configs.get(cid);
+    const row = entry.perRpm.get(state.rpm) || {};
+    const isVal = state.validated.has(cid);
+    const isSel = state.selectedSubset.has(cid);
+    const fly = row.can_liftoff === true;
+    rows += '<tr data-cid="' + cid + '"' + (state.selected === cid ? ' class="active"' : '') + '>';
+    for (const col of LIST_COLS) rows += '<td>' + fmt(valueOf(cid, col)) + '</td>';
+    rows += '<td>' + (isVal ? '<span class="badge val">tested</span> ' : (isSel ? '<span class="badge val" style="background:#fef3c7;color:#d97706">printed</span> ' : ''))
+          + (fly ? '<span class="badge fly">flies</span>' : '<span class="badge nofly">no lift</span>') + '</td></tr>';
+  }
+  tbody.innerHTML = rows;
+  for (const tr of tbody.querySelectorAll('tr'))
+    tr.onclick = function () { select(parseInt(tr.dataset.cid, 10)); };
+
+  document.getElementById('listTitle').textContent = 'Configurations — ' + ids.length + ' match @ ' + state.rpm + ' RPM';
+  document.getElementById('pgInfo').textContent = 'page ' + (state.page + 1) + ' / ' + nPages;
+  document.getElementById('prevPg').disabled = state.page === 0;
+  document.getElementById('nextPg').disabled = state.page >= nPages - 1;
+}
+
+/* STL viewer (three.js with an inline binary-STL parser) */
+
+let stlRenderer = null, stlScene = null, stlCamera = null, stlMesh = null, stlAnim = null, stlDrag = null;
+
+function parseBinarySTL(buffer) {
+  const dv = new DataView(buffer);
+  if (buffer.byteLength < 84) return null;
+  const n = dv.getUint32(80, true);
+  if (n === 0 || buffer.byteLength < 84 + n * 50) return null;
+  const pos = new Float32Array(n * 9);
+  let off = 84;
+  for (let i = 0; i < n; i++) {
+    off += 12;
+    for (let v = 0; v < 9; v++) { pos[i * 9 + v] = dv.getFloat32(off, true); off += 4; }
+    off += 2;
+  }
+  return pos;
+}
+
+async function fetchStl(cid) {
+  for (const dir of STL_DIRS) {
+    try {
+      const res = await fetch(dir + '/prop_' + cid + '.stl');
+      if (!res.ok) continue;
+      const buf = await res.arrayBuffer();
+      const pos = parseBinarySTL(buf);
+      if (pos) return pos;
+    } catch (err) { /* try the next folder */ }
+  }
+  return null;
+}
+
+function disposeStl() {
+  if (stlAnim) cancelAnimationFrame(stlAnim);
+  stlAnim = null;
+  if (stlRenderer) {
+    stlRenderer.dispose();
+    if (stlRenderer.forceContextLoss) stlRenderer.forceContextLoss();
+  }
+  stlRenderer = null; stlScene = null; stlMesh = null;
+}
+
+async function showStl(cid) {
+  const box = document.getElementById('stlBox');
+  const msg = document.getElementById('stlMsg');
+  if (!box) return;
+  msg.innerHTML = 'loading mesh…';
+  const pos = await fetchStl(cid);
+  if (state.selected !== cid) return;
+  if (!pos) {
+    msg.innerHTML = 'STL not available for #' + cid + '<br>(meshes are served from <code>stl/</code>, <code>representative_stl/</code> or <code>validation_stl/</code>)';
+    return;
+  }
+  msg.innerHTML = '';
+  disposeStl();
+
+  const W = box.clientWidth, H = box.clientHeight;
+  stlScene = new THREE.Scene();
+  stlCamera = new THREE.PerspectiveCamera(40, W / H, 0.1, 5000);
+  stlRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  stlRenderer.setSize(W, H);
+  stlRenderer.setPixelRatio(window.devicePixelRatio || 1);
+  box.insertBefore(stlRenderer.domElement, msg);
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geometry.computeVertexNormals();
+  geometry.computeBoundingBox();
+  const bb = geometry.boundingBox;
+  const center = new THREE.Vector3(); bb.getCenter(center);
+  geometry.translate(-center.x, -center.y, -center.z);
+  const size = new THREE.Vector3(); bb.getSize(size);
+  const radius = Math.max(size.x, size.y, size.z) * 0.5 || 1;
+
+  const material = new THREE.MeshStandardMaterial({ color: 0x5b83c4, metalness: 0.15, roughness: 0.55 });
+  stlMesh = new THREE.Mesh(geometry, material);
+  stlMesh.rotation.x = -Math.PI / 3;
+  stlScene.add(stlMesh);
+  stlScene.add(new THREE.AmbientLight(0xffffff, 0.55));
+  const key = new THREE.DirectionalLight(0xffffff, 0.85); key.position.set(1, 1, 1); stlScene.add(key);
+  const fill = new THREE.DirectionalLight(0xbcd0ff, 0.35); fill.position.set(-1, -0.5, -1); stlScene.add(fill);
+  stlCamera.position.set(0, 0, radius * 2.9);
+
+  let spin = true;
+  stlDrag = { down: false, x: 0, y: 0 };
+  const el = stlRenderer.domElement;
+  el.style.cursor = 'grab';
+  el.onmousedown = function (e) { stlDrag.down = true; spin = false; stlDrag.x = e.clientX; stlDrag.y = e.clientY; };
+  window.addEventListener('mouseup', function () { if (stlDrag) stlDrag.down = false; });
+  el.onmousemove = function (e) {
+    if (!stlDrag.down || !stlMesh) return;
+    stlMesh.rotation.z += (e.clientX - stlDrag.x) * 0.01;
+    stlMesh.rotation.x += (e.clientY - stlDrag.y) * 0.01;
+    stlDrag.x = e.clientX; stlDrag.y = e.clientY;
+  };
+  el.onwheel = function (e) {
+    e.preventDefault();
+    stlCamera.position.z = Math.min(Math.max(stlCamera.position.z * (1 + e.deltaY * 0.001), radius * 1.2), radius * 8);
+  };
+
+  function loop() {
+    if (!stlRenderer) return;
+    if (spin && stlMesh) stlMesh.rotation.z += 0.006;
+    stlRenderer.render(stlScene, stlCamera);
+    stlAnim = requestAnimationFrame(loop);
+  }
+  loop();
+}
+
+/* sparkline (dependency-free SVG) */
+
+function sparkline(series) {
+  const W = 460, H = 150, P = 34;
+  const rpms = state.rpms;
+  const vals = [];
+  for (const s of series) {
+    if (isFinite(s.sim)) vals.push(s.sim);
+    if (isFinite(s.aero)) vals.push(s.aero);
+    if (isFinite(s.meas)) vals.push(s.meas);
+  }
+  if (!vals.length) return '';
+  const ymax = Math.max(...vals, 0.5) * 1.1;
+  const x = function (rpm) { return P + (W - P - 10) * (rpm - rpms[0]) / (rpms[rpms.length - 1] - rpms[0] || 1); };
+  const y = function (v) { return H - 22 - (H - 34) * (v / ymax); };
+  function path(key) {
+    let d = '', started = false;
+    for (const s of series) {
+      if (!isFinite(s[key])) continue;
+      d += (started ? 'L' : 'M') + x(s.rpm).toFixed(1) + ',' + y(s[key]).toFixed(1);
+      started = true;
+    }
+    return d;
+  }
+  function dots(key, color) {
+    let out = '';
+    for (const s of series)
+      if (isFinite(s[key]))
+        out += '<circle cx="' + x(s.rpm).toFixed(1) + '" cy="' + y(s[key]).toFixed(1) + '" r="2.6" fill="' + color + '"/>';
+    return out;
+  }
+  let grid = '';
+  for (let g = 0; g <= 4; g++) {
+    const gv = ymax * g / 4;
+    grid += '<line x1="' + P + '" y1="' + y(gv) + '" x2="' + (W - 10) + '" y2="' + y(gv) + '" stroke="#eef0f3"/>'
+          + '<text x="' + (P - 5) + '" y="' + (y(gv) + 3) + '" text-anchor="end" font-size="9" fill="#9aa3b2">' + gv.toFixed(1) + '</text>';
+  }
+  let xticks = '';
+  for (const rpm of rpms)
+    xticks += '<text x="' + x(rpm) + '" y="' + (H - 8) + '" text-anchor="middle" font-size="8.5" fill="#9aa3b2">' + (rpm / 1000) + 'k</text>';
+  return '<svg class="spark" viewBox="0 0 ' + W + ' ' + H + '" width="100%">' + grid + xticks
+    + '<path d="' + path('aero') + '" fill="none" stroke="#94a3b8" stroke-width="1.4" stroke-dasharray="4 3"/>'
+    + '<path d="' + path('sim') + '" fill="none" stroke="#2563eb" stroke-width="2"/>'
+    + '<path d="' + path('meas') + '" fill="none" stroke="#0e9f6e" stroke-width="2"/>'
+    + dots('sim', '#2563eb') + dots('meas', '#0e9f6e') + '</svg>';
+}
+
+/* detail view */
+
+function select(cid) {
+  state.selected = cid;
+  renderList();
+  const entry = state.configs.get(cid);
+  if (!entry) return;
+  const meas = state.validated.get(cid);
+  const body = document.getElementById('detailBody');
+  document.getElementById('detailEmpty').style.display = 'none';
+  body.style.display = 'block';
+  disposeStl();
+
+  let h = '<div class="detail-head"><span class="cid">#' + cid + '</span>'
+        + (meas ? '<span class="badge val">physically tested</span>' : (state.selectedSubset.has(cid) ? '<span class="badge val" style="background:#fef3c7;color:#d97706">printed (subset)</span>' : ''))
+        + '<button id="addCompare">+ compare</button></div>'
+        + '<div id="stlBox"><div id="stlMsg"></div></div>';
+
+  for (const grp of GEOMETRY_GROUPS) {
+    const group = grp[0], cols = grp[1];
+    h += '<div class="grouplabel">' + group + '</div><div class="pgrid">';
+    for (const col of cols) {
+      if (!(col in entry.geo)) continue;
+      h += '<div class="pcell"><div class="k">' + label(col) + '</div><div class="v">' + fmt(entry.geo[col]) + '</div></div>';
+    }
+    h += '</div>';
+  }
+
+  const prow = state.polars.get(cid);
+  if (prow) {
+    h += '<div class="grouplabel">QProp airfoils (NACA 4-digit, click for polar &amp; source)</div><div class="afgrid">';
+    for (const st of STATIONS) {
+      const d = stationData(prow, st);
+      if (d.naca === undefined || d.naca === null || d.naca === '') continue;
+      const info = TIER_INFO[d.tier] || { label: d.tier, cls: 'near' };
+      const failed = d.tier === 'failed';
+      h += '<div class="afcell' + (failed ? ' failed' : '') + '" data-st="' + st + '"'
+         + (failed ? ' title="Discarded: no converged XFoil polar at any Reynolds number — station excluded from the QProp model"' : '') + '>'
+         + airfoilSVG(d.naca, failed ? '#dc2626' : '#4C72B0')
+         + '<div class="nm">' + st + ' · ' + String(d.naca).padStart(4, '0') + '</div>'
+         + '<div class="st">Re ' + (d.re !== null ? Math.round(d.re).toLocaleString() : '–') + '</div>'
+         + '<span class="tier ' + info.cls + '">' + info.label + '</span></div>';
+    }
+    h += '</div>';
+  }
+
+  const series = [];
+  for (const rpm of state.rpms) {
+    const s = entry.perRpm.get(rpm) || {};
+    const m = meas ? (meas.get(rpm) || {}) : {};
+    series.push({ rpm: rpm, sim: Number(s.h_max_m), aero: Number(s.h_max_aero_m), meas: Number(m.h_max_m) });
+  }
+  h += '<div class="grouplabel">Peak height vs launch RPM</div>' + sparkline(series)
+     + '<div class="legend"><span><span class="dot" style="background:#2563eb"></span>simulated (release-corrected)</span>'
+     + '<span><span class="dot" style="background:#94a3b8"></span>simulated (raw aero)</span>'
+     + (meas ? '<span><span class="dot" style="background:#0e9f6e"></span>measured</span>' : '') + '</div>';
+
+  h += '<div class="grouplabel">Performance @ ' + state.rpm + ' RPM</div><div class="pgrid">';
+  const perf = entry.perRpm.get(state.rpm) || {};
+  for (const col of PERF_COLS) {
+    if (!(col in perf)) continue;
+    h += '<div class="pcell"><div class="k">' + label(col) + '</div><div class="v">' + fmt(perf[col]) + '</div></div>';
+  }
+  h += '</div>';
+
+  if (meas) {
+    h += '<div class="grouplabel">Simulated vs measured (per RPM)</div>'
+       + '<div style="overflow-x:auto"><table class="dual"><thead><tr><th>RPM</th><th>sim h [m]</th><th>meas h [m]</th><th>Δ%</th><th>median</th><th>min–max</th><th>runs</th><th></th></tr></thead><tbody>';
+    for (const rpm of state.rpms) {
+      const m = meas.get(rpm);
+      const s = entry.perRpm.get(rpm) || {};
+      if (!m) continue;
+      const simh = Number(s.h_max_m), meash = Number(m.h_max_m);
+      h += '<tr><td>' + rpm + '</td><td class="sim">' + fmt(simh) + '</td>'
+         + '<td class="meas">' + fmt(meash) + '</td>'
+         + pctCell(m.meas_censored === true ? null : pctErr(simh, meash))
+         + '<td class="meas">' + fmt(Number(m.meas_h_median)) + '</td>'
+         + '<td class="meas">' + fmt(Number(m.meas_h_min)) + '–' + fmt(Number(m.meas_h_max)) + '</td>'
+         + '<td>' + fmt(m.n_pass_runs) + '</td>'
+         + '<td>' + (m.meas_censored === true ? '<span class="badge nofly" title="hit the 2.6 m string ceiling">ceiling</span>' : '') + '</td></tr>';
+    }
+    h += '</tbody></table></div>'
+       + '<div class="small">Measured heights are PASS-only, spike-filtered launcher values (isotonic-regressed target as “meas h”). Δ% = (sim − meas)/meas; hidden on censored cells (true height unknown, ≥ 2.6 m).</div>';
+
+    const mrow = meas.values().next().value;
+    if (mrow && (isFinite(mrow.mass_g) || isFinite(mrow.izz_kg_m2))) {
+      const pm = pctErr(Number(entry.geo.mass_g), Number(mrow.mass_g));
+      const pi = pctErr(Number(entry.geo.izz_kg_m2), Number(mrow.izz_kg_m2));
+      h += '<div class="grouplabel">Measured vs simulated mass &amp; inertia</div>'
+         + '<div style="overflow-x:auto"><table class="dual"><thead><tr><th>quantity</th><th>simulated</th><th>measured</th><th>Δ%</th></tr></thead><tbody>'
+         + '<tr><td>mass [g]</td><td class="sim">' + fmt(Number(entry.geo.mass_g)) + '</td><td class="meas">' + fmt(Number(mrow.mass_g)) + '</td>' + pctCell(pm) + '</tr>'
+         + '<tr><td>Izz [kg·m²]</td><td class="sim">' + fmt(Number(entry.geo.izz_kg_m2)) + '</td><td class="meas">' + fmt(Number(mrow.izz_kg_m2)) + '</td>' + pctCell(pi) + '</tr>'
+         + '</tbody></table></div>';
+    }
+  }
+
+  body.innerHTML = h;
+  document.getElementById('addCompare').onclick = function () { addCompare(cid); };
+  const cells = body.querySelectorAll('.afcell');
+  for (const cell of cells) {
+    cell.onclick = function () { openAirfoil(cid, cell.getAttribute('data-st')); };
+  }
+  showStl(cid);
+}
+
+/* compare */
+
+function addCompare(cid) {
+  if (!state.compare.includes(cid)) {
+    if (state.compare.length >= 4) state.compare.shift();
+    state.compare.push(cid);
+  }
+  renderCompareBar();
+}
+
+function renderCompareBar() {
+  const bar = document.getElementById('compareBar');
+  const pills = document.getElementById('comparePills');
+  if (!state.compare.length) { bar.style.display = 'none'; return; }
+  bar.style.display = 'flex';
+  let h = '';
+  for (const cid of state.compare) h += '<span class="pill" data-cid="' + cid + '">#' + cid + '</span> ';
+  pills.innerHTML = h;
+  for (const pill of pills.querySelectorAll('.pill')) {
+    pill.onclick = function () {
+      state.compare = state.compare.filter(function (c) { return c !== parseInt(pill.dataset.cid, 10); });
+      renderCompareBar();
+    };
+  }
+}
+
+function openCompare() {
+  const ids = state.compare;
+  if (ids.length < 2) return;
+  const table = document.getElementById('compareTable');
+  let h = '<thead><tr><th class="rowname">parameter</th>';
+  for (const cid of ids)
+    h += '<th>#' + cid + (state.validated.has(cid) ? ' <span class="badge val">tested</span>' : '') + '</th>';
+  h += '</tr></thead><tbody>';
+
+  function row(name, values) {
+    let allEqual = true;
+    for (const v of values) if (fmt(v) !== fmt(values[0])) allEqual = false;
+    let r = '<tr><th class="rowname">' + name + '</th>';
+    for (const v of values) r += '<td' + (!allEqual ? ' class="diff"' : '') + '>' + fmt(v) + '</td>';
+    return r + '</tr>';
+  }
+  function groupHead(name, color) {
+    return '<tr><th class="rowname" colspan="' + (ids.length + 1) + '" style="padding-top:14px;color:' + color + '">' + name + '</th></tr>';
+  }
+
+  for (const grp of GEOMETRY_GROUPS) {
+    const group = grp[0], cols = grp[1];
+    h += groupHead(group, 'var(--accent)');
+    for (const col of cols) {
+      const values = [];
+      for (const cid of ids) values.push(state.configs.get(cid).geo[col]);
+      h += row(label(col), values);
+    }
+  }
+  h += groupHead('Performance @ ' + state.rpm + ' RPM', 'var(--accent)');
+  for (const col of PERF_COLS) {
+    const values = [];
+    for (const cid of ids) values.push((state.configs.get(cid).perRpm.get(state.rpm) || {})[col]);
+    h += row(label(col), values);
+  }
+  h += groupHead('Measured (validated props)', 'var(--green)');
+  const measRows = [['measured h @ ' + state.rpm + ' RPM [m]', 'h_max_m'], ['measured median [m]', 'meas_h_median'], ['measured mass [g]', 'mass_g'], ['measured Izz [kg·m²]', 'izz_kg_m2'], ['PASS runs @ RPM', 'n_pass_runs']];
+  for (const mr of measRows) {
+    const name = mr[0], key = mr[1];
+    const values = [];
+    for (const cid of ids) {
+      const m = state.validated.get(cid);
+      const r = m ? m.get(state.rpm) : null;
+      values.push(r ? r[key] : null);
+    }
+    h += row(name, values);
+  }
+  h += groupHead('Percent error, sim vs measured', 'var(--orange)');
+  const pctRows = [
+    ['h_max Δ% @ ' + state.rpm + ' RPM', function (cid) {
+      const m = state.validated.get(cid); const r = m ? m.get(state.rpm) : null;
+      const s = state.configs.get(cid).perRpm.get(state.rpm) || {};
+      return (r && r.meas_censored !== true) ? pctErr(Number(s.h_max_m), Number(r.h_max_m)) : null;
+    }],
+    ['mass Δ%', function (cid) {
+      const m = state.validated.get(cid); const r = m ? m.values().next().value : null;
+      return r ? pctErr(Number(state.configs.get(cid).geo.mass_g), Number(r.mass_g)) : null;
+    }],
+    ['Izz Δ%', function (cid) {
+      const m = state.validated.get(cid); const r = m ? m.values().next().value : null;
+      return r ? pctErr(Number(state.configs.get(cid).geo.izz_kg_m2), Number(r.izz_kg_m2)) : null;
+    }],
+  ];
+  for (const pr of pctRows) {
+    const name = pr[0], getter = pr[1];
+    let r = '<tr><th class="rowname">' + name + '</th>';
+    for (const cid of ids) r += pctCell(getter(cid));
+    h += r + '</tr>';
+  }
+  h += '</tbody>';
+  table.innerHTML = h;
+  document.getElementById('overlay').style.display = 'block';
+}
+
+/* overview charts (Plotly) */
+
+function hist(div, values, color, xlabel, nbins) {
+  Plotly.newPlot(div, [{ x: values, type: 'histogram', nbinsx: nbins || 40, marker: { color: color } }],
+    Object.assign({}, PLOTLY_LAYOUT, { xaxis: Object.assign({}, PLOTLY_LAYOUT.xaxis, { title: { text: xlabel, font: { size: 10 } } }) }), PLOTLY_CFG);
+}
+
+
+/* NACA 4-digit outlines and polar reconstruction (item 5) */
+
+function nacaCoords(code, n) {
+  const c = String(code).padStart(4, '0');
+  const m = Number(c[0]) / 100, p = Number(c[1]) / 10, t = Number(c.slice(2)) / 100;
+  const up = [], lo = [];
+  for (let i = 0; i <= n; i++) {
+    const x = 0.5 * (1 - Math.cos(Math.PI * i / n));
+    const yt = 5 * t * (0.2969 * Math.sqrt(x) - 0.1260 * x - 0.3516 * x * x + 0.2843 * x * x * x - 0.1036 * x * x * x * x);
+    let yc = 0, dyc = 0;
+    if (m > 0 && p > 0) {
+      if (x < p) { yc = m / (p * p) * (2 * p * x - x * x); dyc = 2 * m / (p * p) * (p - x); }
+      else { yc = m / ((1 - p) * (1 - p)) * (1 - 2 * p + 2 * p * x - x * x); dyc = 2 * m / ((1 - p) * (1 - p)) * (p - x); }
+    }
+    const th = Math.atan(dyc);
+    up.push([x - yt * Math.sin(th), yc + yt * Math.cos(th)]);
+    lo.push([x + yt * Math.sin(th), yc - yt * Math.cos(th)]);
+  }
+  return up.concat(lo.reverse());
+}
+
+function airfoilSVG(code, color) {
+  const pts = nacaCoords(code, 40);
+  let d = '';
+  for (const pt of pts) d += (d ? ' L' : 'M') + (pt[0] * 100).toFixed(2) + ' ' + (-pt[1] * 100).toFixed(2);
+  return '<svg viewBox="-3 -20 106 40" preserveAspectRatio="xMidYMid meet">'
+       + '<path d="' + d + ' Z" fill="' + color + '22" stroke="' + color + '" stroke-width="1.4" vector-effect="non-scaling-stroke"/></svg>';
+}
+
+function xtrFor(re) { return re <= HUB_RE_THRESHOLD ? 0.01 : 0.05; }
+
+function cacheFileName(code, re) {
+  const reTag = String(Math.round(re)).padStart(6, '0');
+  const xtrTag = String(Math.round(xtrFor(re) * 100)).padStart(3, '0');
+  return 'naca' + String(code).padStart(4, '0') + '_re' + reTag + '_xtr' + xtrTag + '_n5.txt';
+}
+
+function stationData(prow, st) {
+  const g = st === 'hub' ? 'hub' : st;
+  const num = function (k) {
+    const raw = prow[k];
+    if (raw === null || raw === undefined || raw === '') return null;
+    const v = Number(raw);
+    return isFinite(v) ? v : null;
+  };
+  return {
+    station: st, naca: prow['naca_' + st], tier: String(prow['tier_' + st] || ''),
+    re: num('re_' + st), cachedRe: num('cached_re_' + st), r2: num('re_exp_r2_' + st),
+    r_mm: num('r_' + st + '_mm'), chord: num('chord_' + st + '_mm'), twist: num('twist_' + st + '_deg'),
+    CL0: num(g + '_CL0'), CL_a: num(g + '_CL_a'), CLmin: num(g + '_CLmin'), CLmax: num(g + '_CLmax'),
+    CD0: num(g + '_CD0'), CD2u: num(g + '_CD2u'), CD2l: num(g + '_CD2l'), CLCD0: num(g + '_CLCD0'),
+    REref: num(g + '_REref'), REexp: num(g + '_REexp'),
+  };
+}
+
+function openAirfoil(cid, st) {
+  const prow = state.polars.get(cid);
+  if (!prow) return;
+  const d = stationData(prow, st);
+  const info = TIER_INFO[d.tier] || { label: d.tier || 'unknown', cls: 'near', desc: '' };
+  document.getElementById('afTitle').textContent = '#' + cid + ' — station ' + st + ' — NACA ' + String(d.naca).padStart(4, '0');
+  document.getElementById('afTierChip').innerHTML = '<span class="tier ' + info.cls + '" style="font-size:11px;padding:2px 10px">' + info.label + '</span>';
+
+  const solvedRe = d.cachedRe !== null ? d.cachedRe : d.re;
+  let h = '<div style="max-width:340px;margin:14px auto 0">' + airfoilSVG(d.naca, d.tier === 'failed' ? '#dc2626' : '#4C72B0') + '</div>';
+  h += '<div class="srcnote ' + info.cls + '"><b>Source: ' + info.label + '.</b> ' + info.desc
+     + (d.tier === 'viscous_near_re' && d.cachedRe !== null ? ' Solved at Re = ' + fmt(d.cachedRe) + ' for a target of Re = ' + fmt(d.re) + '.' : '') + '</div>';
+
+  h += '<div class="grouplabel" style="padding-left:20px">Metadata</div><div class="afmeta">';
+  const cells = [
+    ['station', st], ['NACA code', String(d.naca).padStart(4, '0')],
+    ['target Re', fmt(d.re)], ['solved Re', fmt(solvedRe)],
+    ['Mach', '≈ 0 (incompressible)'], ['Ncrit', '5'],
+    ['forced transition x/c', solvedRe !== null ? xtrFor(solvedRe).toFixed(2) : '–'],
+    ['radial position [mm]', fmt(d.r_mm)], ['chord [mm]', fmt(d.chord)], ['twist [deg]', fmt(d.twist)],
+    ['QProp REref', fmt(d.REref)], ['QProp REexp', fmt(d.REexp)],
+    ['REexp fit R²', fmt(d.r2)],
+    ['source file', d.tier === 'failed' ? '– (none converged)' : '<span style="font-family:var(--mono);font-size:10.5px">xfoil_polars/' + (prow.__validation_cache ? 'validation/' : '') + cacheFileName(d.naca, solvedRe !== null ? solvedRe : 0) + '</span>'],
+  ];
+  for (const cpair of cells) h += '<div class="pcell"><div class="k">' + cpair[0] + '</div><div class="v">' + cpair[1] + '</div></div>';
+  h += '</div>';
+
+  if (d.tier !== 'failed' && d.CL0 !== null && d.CL_a !== null) {
+    h += '<div class="grouplabel" style="padding-left:20px">Polar (QProp coefficient fit at Re = ' + fmt(d.REref) + ')</div>'
+       + '<div class="afpolars"><div class="chart" id="af-cl" style="min-height:230px"></div><div class="chart" id="af-cd" style="min-height:230px"></div></div>'
+       + '<div class="note">Curves reconstructed from the fitted QProp coefficients: CL = CL0 + CL_a·α clipped to [CLmin, CLmax]; CD = CD0 + CD2·(CL − CLCD0)² with CD2u above and CD2l below CLCD0.</div>';
+  } else {
+    h += '<div class="note" style="color:var(--red)">No polar available — this station was discarded (see note above).</div>';
+  }
+  document.getElementById('afBody').innerHTML = h;
+  document.getElementById('afOverlay').style.display = 'block';
+
+  if (d.tier !== 'failed' && d.CL0 !== null && d.CL_a !== null) {
+    const al = [], cl = [], cd = [];
+    for (let a = -8; a <= 16.001; a += 0.25) {
+      let c = d.CL0 + d.CL_a * a * Math.PI / 180;
+      if (d.CLmin !== null) c = Math.max(c, d.CLmin);
+      if (d.CLmax !== null) c = Math.min(c, d.CLmax);
+      const dc = c - (d.CLCD0 !== null ? d.CLCD0 : 0);
+      const cd2 = dc >= 0 ? (d.CD2u !== null ? d.CD2u : 0) : (d.CD2l !== null ? d.CD2l : 0);
+      al.push(a); cl.push(c); cd.push((d.CD0 !== null ? d.CD0 : 0) + cd2 * dc * dc);
+    }
+    Plotly.newPlot('af-cl', [{ x: al, y: cl, mode: 'lines', line: { color: '#4C72B0', width: 2 } }],
+      Object.assign({}, PLOTLY_LAYOUT, {
+        xaxis: Object.assign({}, PLOTLY_LAYOUT.xaxis, { title: { text: 'α [deg]', font: { size: 10 } } }),
+        yaxis: Object.assign({}, PLOTLY_LAYOUT.yaxis, { title: { text: 'CL', font: { size: 10 } } }),
+      }), PLOTLY_CFG);
+    Plotly.newPlot('af-cd', [{ x: al, y: cd, mode: 'lines', line: { color: '#DD8452', width: 2 } }],
+      Object.assign({}, PLOTLY_LAYOUT, {
+        xaxis: Object.assign({}, PLOTLY_LAYOUT.xaxis, { title: { text: 'α [deg]', font: { size: 10 } } }),
+        yaxis: Object.assign({}, PLOTLY_LAYOUT.yaxis, { title: { text: 'CD', font: { size: 10 } } }),
+      }), PLOTLY_CFG);
+  }
+}
+
+document.getElementById('afClose').onclick = function () { document.getElementById('afOverlay').style.display = 'none'; };
+document.getElementById('afOverlay').onclick = function (e) { if (e.target.id === 'afOverlay') e.target.style.display = 'none'; };
+
+/* three-point natural cubic spline (mirrors NB8 radial_profile) */
+
+function spline3(x, y, xs) {
+  const h0 = x[1] - x[0], h1 = x[2] - x[1];
+  if (h0 <= 0 || h1 <= 0) return null;
+  const M1 = 3 * ((y[2] - y[1]) / h1 - (y[1] - y[0]) / h0) / (h0 + h1);
+  const out = [];
+  for (const xi of xs) {
+    let v;
+    if (xi <= x[1]) {
+      const t = xi - x[0];
+      v = M1 * t * t * t / (6 * h0) + (y[0] / h0) * (x[1] - xi) + (y[1] / h0 - M1 * h0 / 6) * t;
+    } else {
+      const t = x[2] - xi;
+      v = M1 * t * t * t / (6 * h1) + (y[1] / h1 - M1 * h1 / 6) * t + (y[2] / h1) * (xi - x[1]);
+    }
+    out.push(v);
+  }
+  return out;
+}
+
+function drawOverview() {
+  const geoData = {};
+  for (const c of GEO_COLS) geoData[c] = [];
+  const mass = [], izz = [], thrust = [], torque = [], pshaft = [], conf = [], tw = [],
+        haero = [], hcorr = [], ftime = [], vmax = [], scTW = [], scH = [], scB = [];
+  for (const entry of state.configs.values()) {
+    const g = entry.geo, r = entry.perRpm.get(state.rpm) || {};
+    for (const c of GEO_COLS) if (isFinite(g[c])) geoData[c].push(g[c]);
+    if (isFinite(g.mass_g)) mass.push(g.mass_g);
+    if (isFinite(g.izz_kg_m2)) izz.push(g.izz_kg_m2 * 1e6);
+    if (isFinite(g.confidence_score)) conf.push(g.confidence_score);
+    if (isFinite(r.T_static_N)) thrust.push(r.T_static_N);
+    if (isFinite(r.Q_static_Nm)) torque.push(r.Q_static_Nm * 1000);
+    if (isFinite(r.Pshaft_static_W)) pshaft.push(r.Pshaft_static_W);
+    if (isFinite(r.T_over_W)) tw.push(Math.min(r.T_over_W, 5));
+    if (isFinite(r.h_max_aero_m)) haero.push(r.h_max_aero_m);
+    if (isFinite(r.h_max_m)) hcorr.push(r.h_max_m);
+    if (isFinite(r.v_max_m_s) && r.can_liftoff === true) vmax.push(r.v_max_m_s);
+    if (r.can_liftoff === true && isFinite(r.flight_time_s) && r.flight_time_s > 0) ftime.push(r.flight_time_s);
+    if (isFinite(r.T_over_W) && isFinite(r.h_max_m)) { scTW.push(Math.min(r.T_over_W, 5)); scH.push(r.h_max_m); scB.push(g.blade_count); }
+  }
+
+  const geoBox = document.getElementById('ov-geo');
+  geoBox.innerHTML = '';
+  const GEO_PALETTE = ['#4C72B0', '#55A868', '#DD8452', '#8172B3', '#64B5CD', '#C44E52'];
+  let gi = 0;
+  for (const c of GEO_COLS) {
+    const div = document.createElement('div');
+    div.className = 'minichart';
+    div.id = 'ov-geo-' + c;
+    geoBox.appendChild(div);
+    const lay = Object.assign({}, PLOTLY_LAYOUT, {
+      margin: { l: 30, r: 4, t: 6, b: 30 },
+      xaxis: Object.assign({}, PLOTLY_LAYOUT.xaxis, { title: { text: label(c), font: { size: 9.5 } } }),
+      yaxis: Object.assign({}, PLOTLY_LAYOUT.yaxis, { tickfont: { size: 8.5 } }),
+      height: 130,
+    });
+    Plotly.newPlot(div.id, [{ x: geoData[c], type: 'histogram', nbinsx: c === 'blade_count' ? 4 : 22,
+      marker: { color: GEO_PALETTE[gi % GEO_PALETTE.length] }, hoverinfo: 'skip' }], lay, PLOTLY_CFG);
+    gi += 1;
+  }
+
+  drawRadialEvolution();
+
+  hist('ov-mass', mass, '#55A868', 'mass [g]');
+  hist('ov-izz', izz, '#8172B3', 'Izz [mg m²]');
+  hist('ov-thrust', thrust, '#4C72B0', 'static thrust @ ' + state.rpm + ' RPM [N]');
+  hist('ov-torque', torque, '#DD8452', 'static torque @ ' + state.rpm + ' RPM [mN m]');
+  hist('ov-fom', Array.from(state.fom.values()), '#64B5CD', 'FOM max (QProp)');
+  hist('ov-tw', tw, '#DD8452', 'T/W @ ' + state.rpm + ' RPM (clipped at 5)');
+  hist('ov-haero', haero, '#55A868', 'aero h max [m]');
+  hist('ov-hcorr', hcorr, '#4C72B0', 'corrected h max [m]');
+  hist('ov-ftime', ftime, '#C44E52', 'flight time [s]');
+  hist('ov-conf', conf, '#64B5CD', 'confidence score');
+  hist('ov-vmax', vmax, '#55A868', 'v max [m/s]');
+  hist('ov-pshaft', pshaft, '#8172B3', 'shaft power @ ' + state.rpm + ' RPM [W]');
+
+  Plotly.newPlot('ov-scatter', [{
+    x: scTW, y: scH, mode: 'markers', type: 'scattergl',
+    marker: { size: 3.5, opacity: 0.35, color: scB, colorscale: 'Viridis', colorbar: { title: { text: 'blades', font: { size: 10 } }, thickness: 10, len: 0.7 } },
+    hoverinfo: 'skip',
+  }], Object.assign({}, PLOTLY_LAYOUT, {
+    xaxis: Object.assign({}, PLOTLY_LAYOUT.xaxis, { title: { text: 'T/W at ' + state.rpm + ' RPM (clipped at 5)', font: { size: 10 } } }),
+    yaxis: Object.assign({}, PLOTLY_LAYOUT.yaxis, { title: { text: 'corrected peak height h [m]', font: { size: 10 } } }),
+    shapes: [{ type: 'line', x0: 1, x1: 1, y0: 0, y1: 1, yref: 'paper', line: { color: '#dc2626', dash: 'dot', width: 1 } }],
+  }), PLOTLY_CFG);
+
+  const med = { rpm: [], aero: [], corr: [] };
+  for (const rpm of state.rpms) {
+    const a = [], c = [];
+    for (const entry of state.configs.values()) {
+      const r = entry.perRpm.get(rpm);
+      if (r && r.can_liftoff === true) {
+        if (isFinite(r.h_max_aero_m)) a.push(r.h_max_aero_m);
+        if (isFinite(r.h_max_m)) c.push(r.h_max_m);
+      }
+    }
+    a.sort(function (x, y) { return x - y; });
+    c.sort(function (x, y) { return x - y; });
+    med.rpm.push(rpm);
+    med.aero.push(a.length ? a[Math.floor(a.length / 2)] : null);
+    med.corr.push(c.length ? c[Math.floor(c.length / 2)] : null);
+  }
+  Plotly.newPlot('ov-hrpm', [
+    { x: med.rpm, y: med.aero, mode: 'lines+markers', name: 'aero median', line: { color: '#55A868', dash: 'dash' } },
+    { x: med.rpm, y: med.corr, mode: 'lines+markers', name: 'release-corrected median', line: { color: '#4C72B0' } },
+  ], Object.assign({}, PLOTLY_LAYOUT, {
+    showlegend: true, legend: { orientation: 'h', y: 1.12, font: { size: 10 } },
+    xaxis: Object.assign({}, PLOTLY_LAYOUT.xaxis, { title: { text: 'launch RPM', font: { size: 10 } } }),
+    yaxis: Object.assign({}, PLOTLY_LAYOUT.yaxis, { title: { text: 'median h max of lift-off configs [m]', font: { size: 10 } } }),
+    shapes: [{ type: 'line', x0: 0, x1: 1, xref: 'paper', y0: 2.6, y1: 2.6, line: { color: '#dc2626', dash: 'dot', width: 1 } }],
+  }), PLOTLY_CFG);
+  state.overviewDrawn = true;
+}
+
+/* radial evolution: chord & twist via the same 3-point natural spline as NB8, thickness linear */
+
+function drawRadialEvolution() {
+  const R_INNER = 4.0, NPTS = 40, NSAMP = 150;
+  const ids = Array.from(state.configs.keys());
+  const step = Math.max(1, Math.floor(ids.length / NSAMP));
+  const grid = [];
+  for (let i = 0; i < NPTS; i++) grid.push(i / (NPTS - 1));
+  const acc = { chord: [], angle: [], thick: [] };
+  const accX = [];
+  const lines = { chord: { x: [], y: [] }, angle: { x: [], y: [] }, thick: { x: [], y: [] } };
+  for (let i = 0; i < ids.length; i += step) {
+    const g = state.configs.get(ids[i]).geo;
+    const tip = Number(g.radius_mm);
+    if (!isFinite(tip) || tip <= R_INNER) continue;
+    const rmid = Number(g.mid_radial_pos) * tip;
+    if (!(rmid > R_INNER && rmid < tip)) continue;
+    const rr = [], xs = [];
+    for (const f of grid) { const r = R_INNER + f * (tip - R_INNER); xs.push(r); rr.push(r / tip); }
+    const specs = [
+      ['chord', spline3([R_INNER, rmid, tip], [Number(g.inner_chord_mm), Number(g.mid_chord_mm), Number(g.outer_chord_mm)], xs)],
+      ['angle', spline3([R_INNER, rmid, tip], [Number(g.inner_angle_deg), Number(g.mid_angle_deg), Number(g.outer_angle_deg)], xs)],
+    ];
+    const th = [];
+    for (const xi of xs) th.push(Number(g.inner_thickness_pct) + (Number(g.outer_thickness_pct) - Number(g.inner_thickness_pct)) * (xi - R_INNER) / (tip - R_INNER));
+    specs.push(['thick', th]);
+    for (const sp of specs) {
+      const key = sp[0], vals = sp[1];
+      if (!vals) continue;
+      for (let k = 0; k < NPTS; k++) {
+        lines[key].x.push(rr[k]); lines[key].y.push(vals[k]);
+        if (!acc[key][k]) acc[key][k] = [];
+        acc[key][k].push(vals[k]);
+        if (key === 'chord') {
+          if (!accX[k]) accX[k] = [];
+          accX[k].push(rr[k]);
+        }
+      }
+      lines[key].x.push(null); lines[key].y.push(null);
+    }
+  }
+  const charts = [['ov-radial-chord', 'chord', 'chord [mm]', '#4C72B0'],
+                  ['ov-radial-twist', 'angle', 'twist [deg]', '#DD8452'],
+                  ['ov-radial-thick', 'thick', 'thickness [% chord]', '#55A868']];
+  const meanX = [];
+  for (let k = 0; k < NPTS; k++) {
+    const arr = accX[k] || [];
+    let sum = 0;
+    for (const v of arr) sum += v;
+    meanX.push(arr.length ? sum / arr.length : null);
+  }
+  for (const ch of charts) {
+    const div = ch[0], key = ch[1], ylab = ch[2], color = ch[3];
+    const mean = [];
+    for (let k = 0; k < NPTS; k++) {
+      const arr = acc[key][k] || [];
+      let sum = 0;
+      for (const v of arr) sum += v;
+      mean.push(arr.length ? sum / arr.length : null);
+    }
+    Plotly.newPlot(div, [
+      { x: lines[key].x, y: lines[key].y, mode: 'lines', type: 'scattergl', line: { color: color, width: 0.6 }, opacity: 0.14, hoverinfo: 'skip', name: 'sampled configs' },
+      { x: meanX, y: mean, mode: 'lines', line: { color: '#111827', width: 2.5 }, name: 'sample mean', hoverinfo: 'skip' },
+    ], Object.assign({}, PLOTLY_LAYOUT, {
+      showlegend: false,
+      xaxis: Object.assign({}, PLOTLY_LAYOUT.xaxis, { title: { text: 'r / R', font: { size: 10 } }, range: [0, 1.02] }),
+      yaxis: Object.assign({}, PLOTLY_LAYOUT.yaxis, { title: { text: ylab, font: { size: 10 } } }),
+    }), PLOTLY_CFG);
+  }
+}
+
+/* subset tab: PCA coverage (Jacobi eigen-decomposition, no dependencies) */
+
+function pcaGeometry() {
+  const ids = Array.from(state.configs.keys());
+  const cols = [];
+  for (const c of GEO_COLS) if (typeof state.configs.get(ids[0]).geo[c] === 'number') cols.push(c);
+  const n = ids.length, d = cols.length;
+  const X = new Float64Array(n * d);
+  for (let i = 0; i < n; i++) {
+    const g = state.configs.get(ids[i]).geo;
+    for (let j = 0; j < d; j++) X[i * d + j] = g[cols[j]];
+  }
+  for (let j = 0; j < d; j++) {
+    let mu = 0; for (let i = 0; i < n; i++) mu += X[i * d + j];
+    mu /= n;
+    let sd = 0; for (let i = 0; i < n; i++) sd += (X[i * d + j] - mu) * (X[i * d + j] - mu);
+    sd = Math.sqrt(sd / (n - 1)) || 1;
+    for (let i = 0; i < n; i++) X[i * d + j] = (X[i * d + j] - mu) / sd;
+  }
+  const C = [];
+  for (let a = 0; a < d; a++) C.push(new Float64Array(d));
+  for (let a = 0; a < d; a++)
+    for (let b = a; b < d; b++) {
+      let s = 0;
+      for (let i = 0; i < n; i++) s += X[i * d + a] * X[i * d + b];
+      s /= (n - 1); C[a][b] = s; C[b][a] = s;
+    }
+  const V = [];
+  for (let a = 0; a < d; a++) { V.push(new Float64Array(d)); V[a][a] = 1; }
+  for (let sweep = 0; sweep < 60; sweep++) {
+    let off = 0;
+    for (let p = 0; p < d - 1; p++) for (let q = p + 1; q < d; q++) off += C[p][q] * C[p][q];
+    if (off < 1e-12) break;
+    for (let p = 0; p < d - 1; p++) for (let q = p + 1; q < d; q++) {
+      if (Math.abs(C[p][q]) < 1e-14) continue;
+      const theta = (C[q][q] - C[p][p]) / (2 * C[p][q]);
+      const t = Math.sign(theta || 1) / (Math.abs(theta) + Math.sqrt(theta * theta + 1));
+      const cth = 1 / Math.sqrt(t * t + 1), sth = t * cth;
+      for (let k = 0; k < d; k++) {
+        const ckp = C[k][p], ckq = C[k][q];
+        C[k][p] = cth * ckp - sth * ckq; C[k][q] = sth * ckp + cth * ckq;
+      }
+      for (let k = 0; k < d; k++) {
+        const cpk = C[p][k], cqk = C[q][k];
+        C[p][k] = cth * cpk - sth * cqk; C[q][k] = sth * cpk + cth * cqk;
+      }
+      for (let k = 0; k < d; k++) {
+        const vkp = V[k][p], vkq = V[k][q];
+        V[k][p] = cth * vkp - sth * vkq; V[k][q] = sth * vkp + cth * vkq;
+      }
+    }
+  }
+  const eig = [];
+  for (let j = 0; j < d; j++) eig.push({ val: Math.max(C[j][j], 0), vec: j });
+  eig.sort(function (a, b) { return b.val - a.val; });
+  let total = 0;
+  for (const e of eig) total += e.val;
+  if (!total) total = 1;
+  const scores = [[], [], []];
+  for (let i = 0; i < n; i++) {
+    for (let k = 0; k < 3; k++) {
+      const col = eig[k].vec;
+      let s = 0;
+      for (let j = 0; j < d; j++) s += X[i * d + j] * V[j][col];
+      scores[k].push(s);
+    }
+  }
+  const varFrac = [];
+  for (const e of eig) varFrac.push(e.val / total);
+  return { ids: ids, scores: scores, varFrac: varFrac };
+}
+
+function drawSubset() {
+  const pca = pcaGeometry();
+  const isSel = [], isVal = [];
+  for (const cid of pca.ids) { isSel.push(state.selectedSubset.has(cid)); isVal.push(state.validated.has(cid)); }
+
+  function split(xs, ys) {
+    const out = { pool: { x: [], y: [] }, sel: { x: [], y: [], t: [] }, val: { x: [], y: [], t: [] } };
+    for (let i = 0; i < pca.ids.length; i++) {
+      if (isVal[i]) { out.val.x.push(xs[i]); out.val.y.push(ys[i]); out.val.t.push('#' + pca.ids[i]); }
+      else if (isSel[i]) { out.sel.x.push(xs[i]); out.sel.y.push(ys[i]); out.sel.t.push('#' + pca.ids[i]); }
+      else { out.pool.x.push(xs[i]); out.pool.y.push(ys[i]); }
+    }
+    return out;
+  }
+  function coveragePlot(div, s, xl, yl) {
+    Plotly.newPlot(div, [
+      { x: s.pool.x, y: s.pool.y, mode: 'markers', type: 'scattergl', name: 'pool (' + state.configs.size + ')', marker: { size: 3, color: '#c3c9d2', opacity: 0.35 }, hoverinfo: 'skip' },
+      { x: s.sel.x, y: s.sel.y, mode: 'markers', type: 'scattergl', name: 'selected (' + state.selectedSubset.size + ')', text: s.sel.t, marker: { size: 7, color: '#dc2626', line: { color: '#fff', width: 0.5 } } },
+      { x: s.val.x, y: s.val.y, mode: 'markers', type: 'scattergl', name: 'flight-tested (' + state.validated.size + ')', text: s.val.t, marker: { size: 9, color: '#0e9f6e', symbol: 'diamond', line: { color: '#fff', width: 0.8 } } },
+    ], Object.assign({}, PLOTLY_LAYOUT, {
+      showlegend: true, legend: { orientation: 'h', y: 1.09, font: { size: 10 } },
+      xaxis: Object.assign({}, PLOTLY_LAYOUT.xaxis, { title: { text: xl, font: { size: 10 } } }),
+      yaxis: Object.assign({}, PLOTLY_LAYOUT.yaxis, { title: { text: yl, font: { size: 10 } } }),
+    }), PLOTLY_CFG);
+  }
+  coveragePlot('pca12', split(pca.scores[0], pca.scores[1]), 'PC1', 'PC2');
+  coveragePlot('pca13', split(pca.scores[0], pca.scores[2]), 'PC1', 'PC3');
+  document.getElementById('pcaVar12').textContent = '(' + (pca.varFrac[0] * 100).toFixed(1) + '% + ' + (pca.varFrac[1] * 100).toFixed(1) + '% of variance)';
+  document.getElementById('pcaVar13').textContent = '(' + (pca.varFrac[0] * 100).toFixed(1) + '% + ' + (pca.varFrac[2] * 100).toFixed(1) + '% of variance)';
+
+  const screeX = [], screeY = [];
+  for (let i = 0; i < pca.varFrac.length; i++) { screeX.push('PC' + (i + 1)); screeY.push(pca.varFrac[i] * 100); }
+  Plotly.newPlot('pcaScree', [{ x: screeX, y: screeY, type: 'bar', marker: { color: '#4C72B0' } }],
+    Object.assign({}, PLOTLY_LAYOUT, { yaxis: Object.assign({}, PLOTLY_LAYOUT.yaxis, { title: { text: 'explained variance [%]', font: { size: 10 } } }) }), PLOTLY_CFG);
+
+  const raw1 = { pool: { x: [], y: [] }, sel: { x: [], y: [], t: [] }, val: { x: [], y: [], t: [] } };
+  const raw2 = { pool: { x: [], y: [] }, sel: { x: [], y: [], t: [] }, val: { x: [], y: [], t: [] } };
+  function jitter() { return (Math.random() - 0.5) * 0.36; }
+  for (const kv of state.configs) {
+    const cid = kv[0], g = kv[1].geo;
+    const b1 = state.validated.has(cid) ? raw1.val : state.selectedSubset.has(cid) ? raw1.sel : raw1.pool;
+    const b2 = state.validated.has(cid) ? raw2.val : state.selectedSubset.has(cid) ? raw2.sel : raw2.pool;
+    b1.x.push(g.radius_mm + jitter()); b1.y.push(g.blade_count + jitter());
+    b2.x.push(g.mid_chord_mm); b2.y.push(g.outer_chord_mm);
+    if (b1.t) b1.t.push('#' + cid);
+    if (b2.t) b2.t.push('#' + cid);
+  }
+  coveragePlot('cov1', raw1, 'tip radius [mm] (jittered)', 'blade count (jittered)');
+  coveragePlot('cov2', raw2, 'mid chord [mm]', 'outer chord [mm]');
+  state.subsetDrawn = true;
+}
+
+/* tabs / boot */
+
+function switchTab(name) {
+  for (const b of document.querySelectorAll('nav button')) b.classList.toggle('on', b.dataset.tab === name);
+  for (const t of document.querySelectorAll('.tab')) t.classList.toggle('on', t.id === 'tab-' + name);
+  if (name === 'overview' && !state.overviewDrawn) drawOverview();
+  if (name === 'subset' && !state.subsetDrawn) drawSubset();
+}
+
+function populateControls() {
+  for (const id of ['rpmSel', 'rpmSelOv']) {
+    const sel = document.getElementById(id);
+    sel.innerHTML = '';
+    for (const rpm of state.rpms) {
+      const opt = document.createElement('option');
+      opt.value = rpm; opt.textContent = rpm;
+      if (rpm === state.rpm) opt.selected = true;
+      sel.appendChild(opt);
+    }
+  }
+}
+
+function wireEvents() {
+  for (const b of document.querySelectorAll('nav button'))
+    b.onclick = function () { switchTab(b.dataset.tab); };
+  document.getElementById('q').oninput = function () { state.page = 0; renderList(); };
+  function onRpmChange(v) {
+    state.rpm = parseInt(v, 10);
+    document.getElementById('rpmSel').value = state.rpm;
+    document.getElementById('rpmSelOv').value = state.rpm;
+    renderList();
+    state.overviewDrawn = false;
+    if (document.getElementById('tab-overview').classList.contains('on')) drawOverview();
+    if (state.selected !== null) select(state.selected);
+  }
+  document.getElementById('rpmSel').onchange = function (e) { onRpmChange(e.target.value); };
+  document.getElementById('rpmSelOv').onchange = function (e) { onRpmChange(e.target.value); };
+  for (const id of ['flyOnly', 'valOnly', 'selOnly', 'pageSize'])
+    document.getElementById(id).onchange = function () { state.page = 0; renderList(); };
+  document.getElementById('addFilter').onclick = function () { addFilterRow(); };
+  document.getElementById('prevPg').onclick = function () { state.page--; renderList(); };
+  document.getElementById('nextPg').onclick = function () { state.page++; renderList(); };
+  document.getElementById('openCompare').onclick = openCompare;
+  document.getElementById('clearCompare').onclick = function () { state.compare = []; renderCompareBar(); };
+  document.getElementById('closeCompare').onclick = function () { document.getElementById('overlay').style.display = 'none'; };
+  document.getElementById('overlay').onclick = function (e) { if (e.target.id === 'overlay') e.target.style.display = 'none'; };
+}
+
+async function boot() {
+  let simRows;
+  try {
+    simRows = await loadCsv(SIM_CSV);
+  } catch (err) {
+    document.getElementById('error').style.display = 'block';
+    return;
+  }
+  let valRows = [], selRows = [];
+  try { valRows = await loadCsv(VAL_CSV); } catch (err) { /* optional */ }
+  try { selRows = await loadCsv(SEL_CSV); } catch (err) { /* optional */ }
+  try {
+    const polarRows = await loadCsv(POLARS_CSV);
+    for (const row of polarRows) if (row.config_id !== undefined && row.config_id !== null) state.polars.set(Number(row.config_id), row);
+  } catch (err) { /* optional: airfoil viewer hidden without csv/04_xfoil_polars.csv */ }
+  try {
+    const valPolarRows = await loadCsv(VAL_POLARS_CSV);
+    for (const row of valPolarRows) {
+      if (row.config_id === undefined || row.config_id === null) continue;
+      row.__validation_cache = true;
+      state.polars.set(Number(row.config_id), row);
+    }
+  } catch (err) { /* optional */ }
+  try {
+    const qpropRows = await loadCsv(QPROP_CSV);
+    for (const row of qpropRows) {
+      const f = Number(row.FOM_max);
+      if (row.qprop_ok !== false && isFinite(f)) state.fom.set(Number(row.config_id), f);
+    }
+  } catch (err) { /* optional: FOM panel empty without csv/05_qprop_results.csv */ }
+
+  ingest(simRows, valRows, selRows);
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('stats').innerHTML =
+    '<b>' + state.configs.size.toLocaleString() + '</b> configs · <b>' + state.rpms.length + '</b> RPM levels · <b>'
+    + state.selectedSubset.size + '</b> printed · <b>' + state.validated.size + '</b> flight-tested';
+  populateControls();
+  wireEvents();
+  renderList();
+  drawOverview();
+}
+
+boot();
+</script>
+</body>
+</html>

@@ -1,0 +1,4 @@
+stage,mean_error_pct,mean_abs_error_pct,std_error_pct
+raw_stl_com_corrected,857.8220129676281,865.2966522290974,8599.36471720447
+linear_izz_regression,11.16390136494267,17.17650461833615,125.38957917121635
+linear_izz_regression_loo_cv,,30.810881430872083,

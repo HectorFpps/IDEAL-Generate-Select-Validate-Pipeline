@@ -1,0 +1,7 @@
+Dummy motor for RPM-fixed runs
+
+ 1        ! motor type
+
+ 0.10     ! R  (Ohms)
+ 0.10     ! Io (Amps)
+ 750.0   ! Kv (rpm/Volt)

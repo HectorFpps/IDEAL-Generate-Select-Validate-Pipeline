@@ -1,0 +1,28 @@
+# Python 3.11 required
+#
+# Pinned dependency set for the IDEAL propeller-characterisation pipeline.
+# Install with:  pip install -r requirements.txt
+# (Standard-library modules used by the notebooks — os, sys, json, math, re,
+#  glob, struct, shutil, pathlib, subprocess, tempfile, time, warnings,
+#  urllib, concurrent.futures — ship with Python and are not listed.)
+
+# --- core numerics and data ---
+numpy==1.26.4
+pandas==2.2.3
+scipy==1.13.1
+
+# --- plotting (NB8 and inline notebook figures) ---
+matplotlib==3.9.2
+
+# --- mesh handling (NB2 volume/shell checks, NB3 mass & inertia, NB9) ---
+trimesh==4.4.9
+
+# --- progress bars (all batch loops) ---
+tqdm==4.66.5
+
+# --- NB2 only: RhinoCompute STL generation (requires Rhinoceros 8 on Windows) ---
+rhino3dm==8.17.0
+compute-rhino3d==0.12.2
+
+# --- notebook runtime ---
+jupyter==1.1.1

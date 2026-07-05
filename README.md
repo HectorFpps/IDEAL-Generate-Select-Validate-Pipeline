@@ -39,7 +39,7 @@ Author: Héctor Fernández Pinacho · Supervisors: Prof. Dr. Mark Fuge, Arthur D
 
 The goal of this pipeline is to build a **dataset of 5000 3D-printable propeller designs**, where every design carries both its full **geometric description** (17 parameters) and its **simulated performance** — static thrust and torque, thrust-to-weight ratio, and above all **h_max**: the peak height the propeller reaches when spun up to a launch RPM and released into free vertical flight. Eleven launch RPMs (1500–6500) are simulated per design, giving a flat, machine-learning-ready table of 55 000 rows.
 
-Because a simulated number is only worth what its validation says, the pipeline closes the loop physically: **100 designs** are selected to cover the design space, printed in SLS nylon, and measured on a scale and a trifilar pendulum; **30 of them are flown** across the full RPM range on a vertical free-flight launcher that spins each prop to a set rate, releases it, and records its climb. The measured results become a second dataset with the same identifiers, so simulation and reality can be joined row by row.
+Because a simulated number is only worth what its validation says, the pipeline closes the loop physically: **100 designs** are selected to cover the design space, printed in SLS nylon, and measured on a precision scale and a trifilar pendulum (a platform hanging on three strings — the time it takes to oscillate around the vertical axis gives the moment of inertia); **30 of them are flown** across the full RPM range on a vertical free-flight launcher that spins each prop to a set rate, releases it, and records its climb. The measured results become a second dataset with the same identifiers, so simulation and reality can be joined row by row.
 
 Everything is organised as ten Jupyter notebooks forming a strict pipeline (no stage reads the output of a later stage), a single configuration module, and a `utils/` folder holding every input the pipeline *uses* but never *writes* — measured data, launcher test campaigns, the parametric CAD definition and the aerodynamic solvers. This repository contains exactly that: **the code and `utils/`**. Everything else you will see mentioned in this README (`csv/`, `stl/`, `plots/`, solver caches, the two datasets) is *generated* by running the notebooks.
 
@@ -49,7 +49,7 @@ Everything is organised as ten Jupyter notebooks forming a strict pipeline (no s
 
 Four ideas are enough to read everything else.
 
-**A blade section is an airfoil.** Cut a propeller blade at any radius and you get a NACA 4-digit airfoil described by chord, thickness and camber. Its lift and drag depend on the angle of attack and are summarised by its *polar*, which we compute with **XFoil**. These propellers are small and slow, so many sections operate at very low Reynolds numbers (Re < 20 000) where the flow is delicate and XFoil does not always converge — the pipeline handles this with a documented fallback hierarchy per station.
+**A blade section is an airfoil.** Cut a propeller blade at any radius and you get a NACA 4-digit airfoil described by chord, thickness and camber. Its lift and drag depend on the angle of attack and are summarised by its *polar*, which we compute with **XFoil**. These propellers are small and slow, so many sections operate at very low Reynolds numbers (Re < 20 000) where the flow is delicate and XFoil does not always converge. When it fails at a station's target Reynolds number, the pipeline falls back step by step: first it reuses the closest converged polar of the same airfoil at a nearby Reynolds number (rescaled), the hub may borrow its neighbouring station's polar, and a station with nothing usable is dropped and flagged. Every design records a **confidence score** (0–1) saying how much of its blade is backed by directly converged polars.
 
 **Blade elements add up to a propeller.** **QProp** combines the section polars along the blade (blade-element/vortex theory) into whole-propeller thrust T and torque Q at any operating point (flight speed V, rotation speed RPM). We tabulate T(V, ω) and Q(V, ω) over a grid once per design.
 
@@ -88,54 +88,36 @@ Solid arrows are file dependencies; every notebook also reads `pipeline_config.p
 
 ```mermaid
 flowchart TD
-    subgraph measured [Measured inputs — utils/, never written by any notebook]
-        M1["utils/00_measured_mass_inertia.csv<br>(bench mass + trifilar times)"]
-        M2["utils/00_validation_geometry.csv<br>(true geometry of tested props)"]
-        M3["utils/results/<br>(launcher flight campaigns)"]
-        M4["utils/validation_stl/<br>(printed meshes of 10 early props)"]
+    subgraph inputs [utils/ — measured inputs, never written by the pipeline]
+        M1["00_measured_mass_inertia.csv<br>bench mass + trifilar times"]
+        M2["00_validation_geometry.csv +<br>validation_stl/<br>the 10 recovered props"]
+        M3["results/<br>launcher flight campaigns"]
     end
 
-    NB1["NB1 · LHS sampling"] -->|"01_geometry.csv"| NB2["NB2 · STL generation<br>(RhinoCompute)"]
-    NB1 -->|"01_geometry.csv"| NB3["NB3 · geometry metadata<br>(NACA codes, mass, Izz)"]
-    NB1 -->|"01_geometry.csv"| NB4["NB4 · XFoil polars"]
-    NB1 -->|"01_geometry.csv"| NB5["NB5 · QProp sweep"]
-    NB1 -->|"01_geometry.csv"| NB6["NB6 · flight dynamics<br>(aero-only)"]
-    NB1 -->|"01_geometry.csv"| NB7["NB7 · representative selection"]
+    NB1["NB1 · LHS sampling"] -->|"1 CSV: the 5000-design geometry table"| NB2["NB2 · STL generation"]
+    NB2 -->|"5000 meshes + volume table"| NB3["NB3 · geometry metadata"]
+    NB3 -->|"2 CSVs: NACA codes, mass + inertia"| NB4["NB4 · XFoil polars"]
+    NB4 -->|"1 CSV: polar coefficients per station"| NB5["NB5 · QProp sweep"]
+    NB5 -->|"2 CSVs: thrust/torque surfaces, optima"| NB6["NB6 · flight dynamics (aero)"]
+    NB6 -->|"12 CSVs: flight results at 11 RPMs"| NB6b["NB6b · flight + release correction"]
+    NB6b -->|"14 CSVs: corrected flight, calibration"| NB7["NB7 · select 100 props to print"]
+    NB7 -->|"2 CSVs: the selection"| NB9["NB9 · validation vs measurements"]
+    NB9 -->|"7 CSVs: validation tables"| NB8["NB8 · all figures"]
 
-    NB2 -->|"stl/  +  02_stl_volumes.csv"| NB3
     M1 --> NB3
     M2 --> NB3
-    M4 --> NB3
-    NB3 -->|"03_naca_codes.csv"| NB4
-    NB3 -->|"03_mass_inertia.csv"| NB5
-    NB3 -->|"03_mass_inertia.csv"| NB6
-    NB4 -->|"04_xfoil_polars.csv"| NB5
-    NB5 -->|"05_qprop_results.csv<br>05_qprop_sweep.csv.gz"| NB6
-    NB5 --> NB7
-
-    NB6 -->|"06_flight_dynamics*.csv"| NB6b["NB6b · flight dynamics<br>+ screw-release correction"]
-    M3 -->|"release-correction fit"| NB6b
-    NB6 -->|"06_flight_dynamics.csv"| NB7
-
-    NB6b -->|"06b_*.csv"| NB9["NB9 · validation<br>(mass · inertia · flight)"]
-    NB6 --> NB9
-    NB7 -->|"07_selected.csv"| NB9
+    M3 --> NB6b
     M1 --> NB9
     M2 --> NB9
     M3 --> NB9
 
-    NB6b ==>|"writes"| DS1[("csv/dataset_full_simulation.csv<br>5000 configs × 11 RPMs")]
-    NB9 ==>|"writes"| DS2[("csv/dataset_validated.csv<br>tested props, measured values")]
-
-    NB9 -->|"validation_* tables"| NB8["NB8 · visualization<br>(all figures → plots/)"]
-    DS1 --> DASH["dashboard.html<br>(config browser)"]
-    DS2 --> DASH
-    NB7 --> DASH
-    NB4 -->|"04_xfoil_polars.csv (airfoil viewer)"| DASH
-    NB5 -->|"05_qprop_results.csv (FOM)"| DASH
+    NB6b ==> DS1[("dataset_full_simulation.csv<br>5000 designs × 11 RPMs")]
+    NB9 ==> DS2[("dataset_validated.csv<br>the flight-tested designs, measured")]
 ```
 
-NB3–NB6b each end with a *Validation Subset* pass: 10 early-printed props were flight-tested before a re-run of NB1 reassigned their `config_id`s to new geometries, so their true geometry is preserved in `utils/00_validation_geometry.csv` and their printed meshes in `utils/validation_stl/`. The pass re-runs the identical computation on exactly those props and writes `val_`-prefixed twins of every output, which NB9 merges in automatically.
+The chain is drawn as a single line for readability — in reality later notebooks also re-read `csv/01_geometry.csv` and other earlier outputs directly (everything is keyed by `config_id`), and every notebook reads `pipeline_config.py`. The labels tell you roughly what each stage hands downstream; the exact files are listed per notebook in Section 7.
+
+**Why 10 props get special treatment (the "validation subset").** The physical test campaign happened against an *earlier version* of this pipeline: 10 props were printed and flight-tested first, and later the code was revised and fully re-run. The re-run changed two things at once — NB1's sampling assigned **different geometries to the same `config_id`s**, and NB7 picked a **different representative subset**. So for those 10 early props, the current `csv/01_geometry.csv` row under their id describes a design that was never printed, while the actual printed parts (and their flight data in `utils/results/`) still existed and were too valuable to throw away. The solution: their true as-printed geometry is frozen in `utils/00_validation_geometry.csv` and their actual meshes in `utils/validation_stl/`. NB3, NB4, NB5, NB6 and NB6b each end with a short *Validation Subset* section that re-runs the exact same computation on those 10 recorded geometries (writing `val_`-prefixed twins of their outputs, e.g. `val_04_xfoil_polars.csv`), and NB9 merges them in automatically — extending the flight validation from the 20 tested props of the current subset to all 30 physically flown props.
 
 ---
 
@@ -201,9 +183,9 @@ Run the notebooks in order, each top to bottom. This is what your folder looks l
 
 **After NB3** (minutes): `csv/03_naca_codes.csv` (the airfoil code at each blade station), `csv/03_mass_inertia.csv` (calibrated mass, full inertia tensor, corrected `izz_regressed`), three calibration audit tables, and the first `val_` twins (`val_02`, `val_03_*`) for the 10 recovered props.
 
-**After NB4** (hours cold): `xfoil_polars/` — a cache of raw XFoil polar files (~4000 of them, named `naca<code>_re<Re>_xtr<x>_n5.txt`) plus `xfoil_polars/validation/` for the subset — and `csv/04_xfoil_polars.csv`: per design, the ten aerodynamic coefficients QProp needs at each of 7 stations, each station labelled with its solution tier (`viscous` / `viscous_near_re` / `hub_uses_s1` / `failed`) and a per-design confidence score. Fully cached: a re-run computes nothing that already exists.
+**After NB4** (hours cold): `xfoil_polars/` — a cache of raw XFoil polar files (~4000 of them, named `naca<code>_re<Re>_xtr<x>_n5.txt`) plus `xfoil_polars/validation/` for the subset — and `csv/04_xfoil_polars.csv`: per design, the ten aerodynamic coefficients QProp needs at each of 7 stations, each station labelled with its solution tier — `viscous` (solved directly), `viscous_near_re` (nearest converged Reynolds number reused), `hub_uses_s1` (hub borrows the neighbouring station), `failed` (station dropped) — plus the per-design confidence score described in Section 2. Fully cached: a re-run computes nothing that already exists.
 
-**After NB5** (hours cold): `qprop_input/props/` (one QProp geometry file per design), `qprop_output/` (raw solver output per design, ~4 GB), and two tables: `csv/05_qprop_results.csv` (per-design optima: hover point, best figure of merit, best efficiency) and `csv/05_qprop_sweep.csv.gz` (the full T/Q surfaces: one row per design × 231 grid points).
+**After NB5** (hours cold): `qprop_input/props/` (one QProp geometry file per design), `qprop_output/` (raw solver output per design, ~4 GB), and two tables: `csv/05_qprop_results.csv` (per-design optima: hover point, best figure of merit — hover efficiency, ideal power over actual power — and best propulsive efficiency) and `csv/05_qprop_sweep.csv.gz` (the full T/Q surfaces: one row per design × 231 grid points).
 
 **After NB6 + NB6b** (tens of minutes): `csv/06_flight_dynamics_<rpm>rpm.csv` ×11 and the `06b_*` release-corrected equivalents, the fitted correction in `csv/06b_release_calibration.csv`, and the first headline deliverable: **`csv/dataset_full_simulation.csv`** — 55 000 rows × 40 columns.
 
@@ -759,9 +741,9 @@ The full validation of the pipeline against physical measurements, in three stag
 
 **Naming convention first:** `csv/<NB>_<name>.csv` marks the notebook that writes a file (`01_geometry.csv` ← NB1, `06b_*` ← NB6b, …), `csv/val_*` are the validation-subset twins, `csv/validation_*` are NB9's result tables. Never edit a generated CSV by hand — re-run its owner notebook.
 
-**`csv/dataset_full_simulation.csv`** (written by NB6b) — the simulation dataset: 55 000 rows = 5000 configs × 11 launch RPMs, 40 columns. Identifiers (`config_id`, `rpm_launch`), the 17 geometry parameters, mass/inertia/drag areas, the polar `confidence_score`, quality flags (`stl_ok`, `qprop_ok`, `flight_ok`, `can_liftoff`), and the flight outputs (`T_static_N`, `Q_static_Nm`, `Pshaft_static_W`, `T_over_W`, `h_max_aero_m`, `h_max_m`, `flight_time_s`, `hover_time_s`, `v_max_m_s`, `v_impact_m_s`, `rpm_at_impact`). For model training: filter on the quality flags (≈12 % of rows are honestly NaN because an upstream gate failed — no mesh, no converged polars, no plausible QProp surface), and mind the floor: designs that cannot lift off all get `h_max_m = A` (the release-kick floor, ≈0.30 m), which piles up at low RPMs — use `can_liftoff` or `h_max_aero_m` if that matters to your model.
+**`csv/dataset_full_simulation.csv`** (written by NB6b) — the simulation dataset: 55 000 rows = 5000 configs × 11 launch RPMs, 40 columns. Identifiers (`config_id`, `rpm_launch`), the 17 geometry parameters, mass/inertia/drag areas, the polar `confidence_score`, quality flags (`stl_ok`, `qprop_ok`, `flight_ok`, `can_liftoff`), and the flight outputs (`T_static_N`, `Q_static_Nm`, `Pshaft_static_W`, `T_over_W`, `h_max_aero_m`, `h_max_m`, `flight_time_s`, `hover_time_s`, `v_max_m_s`, `v_impact_m_s`, `rpm_at_impact`). For model training: filter on the quality flags (≈12 % of rows are honestly NaN because an upstream gate failed — no mesh, no converged polars, no plausible QProp surface), and mind the floor: the release correction is `h = A + B·h_aero`, so every design that cannot climb at all (`h_aero = 0`) gets exactly `h_max_m = A ≈ 0.30 m` — physically, the launcher's release mechanism kicks even a non-flying prop about 30 cm upward. At 1500 RPM that is nearly all 5000 designs, so the column is heavily floor-inflated at low RPMs; use `can_liftoff` or `h_max_aero_m` (a clean 0 there) if that matters to your model.
 
-**`csv/dataset_validated.csv`** (written by NB9) — the measured dataset: one row per physically tested (config, RPM) cell, containing measured values on the identifier/geometry/measurement subset of the full dataset's columns: the true printed geometry (`geometry_source` tells which table it came from), bench mass and trifilar inertia, and the launcher height (`h_max_m` = isotonic-regressed PASS-mean, with `meas_h_median/mean/min/max`, `n_pass_runs` and the `meas_censored` ceiling flag alongside). The simulated reference heights are appended as explicitly named columns (`h_sim_release_m`, `h_sim_aero_m`); simulation-only fields are omitted entirely rather than carried as empty columns. The two datasets join on `config_id` + `rpm_launch`.
+**`csv/dataset_validated.csv`** (written by NB9) — the measured dataset: one row per physically tested (config, RPM) cell, containing measured values on the identifier/geometry/measurement subset of the full dataset's columns: the true printed geometry (`geometry_source` tells which table it came from), bench mass and trifilar inertia, and the launcher height. Three measurement details worth knowing: each prop was launched several times per RPM and every run carries a quality flag — only **PASS runs** (clean, spike-filtered traces) are used; the per-RPM heights are then smoothed with **isotonic regression**, a fit constrained to never decrease with RPM (spinning a prop faster cannot make it fly lower on average), and that smoothed value is what lands in `h_max_m` (the raw `meas_h_median/mean/min/max` and `n_pass_runs` are kept alongside); finally, the launcher has a physical string ceiling at 2.6 m, so peaks above 2.4 m are flagged `meas_censored` — the prop flew *at least* that high, the true height is unknown, and such cells are excluded from error metrics. The simulated reference heights are appended as explicitly named columns (`h_sim_release_m`, `h_sim_aero_m`); simulation-only fields are omitted entirely rather than carried as empty columns. The two datasets join on `config_id` + `rpm_launch`.
 
 **A reproducibility note on the validation.** NB7's selection is seeded and reproducible, but it is a function of the upstream data — and the physical campaign printed one specific historical subset. Its identity is preserved in `utils/` (the tested props' geometry and launcher runs), so NB9 always validates the 10 recovered props; the other 20 tested props enter the matched tables only if the regenerated selection contains them. Reproducing the thesis' exact 30-prop validation tables therefore requires the original `07_selected.csv` from the thesis deliverable rather than a freshly generated one.
 

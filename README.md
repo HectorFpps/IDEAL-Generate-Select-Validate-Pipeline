@@ -84,7 +84,7 @@ Ten notebooks, run in order. Each is structured identically — **1. Imports · 
 | NB8 | `8_visualization` | every figure of the project → `plots/` |
 | NB9 | `9_validation` | mass, inertia and flight vs measurements → **validated dataset** |
 
-Solid arrows are file dependencies; every notebook also reads `pipeline_config.py`. The grey box is this repository's `utils/` folder — measured inputs that no notebook ever writes.
+Solid arrows are file dependencies; every notebook also reads `pipeline_config.py`. The yellow box is this repository's `utils/` folder — measured inputs that no notebook ever writes.
 
 ```mermaid
 flowchart TD

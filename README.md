@@ -13,12 +13,12 @@ Author: Héctor Fernández Pinacho · Supervisors: Prof. Dr. Mark Fuge, Arthur D
 
 ## Contents
 
-1. [Overview](#1-overview)
-2. [Repository Layout](#2-repository-layout)
-3. [Installation](#3-installation)
-4. [Configuration](#4-configuration)
-5. [Running the Pipeline](#5-running-the-pipeline)
-6. [Pipeline DAG](#6-pipeline-dag)
+1. [Introduction](#1-introduction)
+2. [Physics Background](#2-physics-background)
+3. [Pipeline Overview and DAG](#3-pipeline-overview-and-dag)
+4. [What Is in This Repository](#4-what-is-in-this-repository)
+5. [Installation and Configuration](#5-installation-and-configuration)
+6. [Running the Pipeline — What Appears on Disk](#6-running-the-pipeline--what-appears-on-disk)
 7. [Notebook Deep Dive](#7-notebook-deep-dive)
    - [7.1 NB1 — 1_lhs_sampling.ipynb · LHS Geometrical Parameter Sampling](#71-nb1--1_lhs_samplingipynb--lhs-geometrical-parameter-sampling)
    - [7.2 NB2 — 2_stl_generation.ipynb · STL Generation](#72-nb2--2_stl_generationipynb--stl-generation)
@@ -30,107 +30,61 @@ Author: Héctor Fernández Pinacho · Supervisors: Prof. Dr. Mark Fuge, Arthur D
    - [7.8 NB7 — 7_representative_selection.ipynb · Representative Propeller Selection](#78-nb7--7_representative_selectionipynb--representative-propeller-selection)
    - [7.9 NB8 — 8_visualization.ipynb · Design-Space and Pipeline Visualisation](#79-nb8--8_visualizationipynb--design-space-and-pipeline-visualisation)
    - [7.10 NB9 — 9_validation.ipynb · Validation (Mass, Inertia, Simulation)](#710-nb9--9_validationipynb--validation-mass-inertia-simulation)
-8. [Data Guide](#8-data-guide)
-9. [Browsing the Results](#9-browsing-the-results)
+8. [The Two Datasets](#8-the-two-datasets)
+9. [The Results Dashboard](#9-the-results-dashboard)
 
 ---
 
-## 1. Overview
+## 1. Introduction
 
-This repository is an end-to-end, reproducible pipeline that generates **5000 parametric 3D-printable propeller designs**, predicts the free-flight performance of every design from simulation alone, and validates the predictions against physical experiments. The chain is: constrained Latin Hypercube Sampling of 17 geometry parameters (NB1) → parametric CAD meshing via Grasshopper/RhinoCompute (NB2) → mass, inertia and airfoil metadata (NB3) → XFoil section polars (NB4) → QProp blade-element thrust/torque surfaces (NB5) → free-flight ODE integration at 11 launch RPMs, raw (NB6) and launcher-corrected (NB6b) → greedy k-centre selection of **100 designs for fabrication** (NB7) → all figures (NB8) → three-stage validation against bench and flight measurements of **30 tested props** (NB9).
+The goal of this pipeline is to build a **dataset of 5000 3D-printable propeller designs**, where every design carries both its full **geometric description** (17 parameters) and its **simulated performance** — static thrust and torque, thrust-to-weight ratio, and above all **h_max**: the peak height the propeller reaches when spun up to a launch RPM and released into free vertical flight. Eleven launch RPMs (1500–6500) are simulated per design, giving a flat, machine-learning-ready table of 55 000 rows.
 
-The headline metric is **h_max**, the peak height a propeller reaches after being spun up to a launch RPM and released on a vertical free-flight launcher. The pipeline ships two flat machine-learning-ready datasets — `csv/dataset_full_simulation.csv` (all 5000 designs × 11 RPMs, simulated) and `csv/dataset_validated.csv` (the 30 tested props, measured) — plus `dashboard.html`, an interactive browser over both.
+Because a simulated number is only worth what its validation says, the pipeline closes the loop physically: **100 designs** are selected to cover the design space, printed in SLS nylon, and measured on a scale and a trifilar pendulum; **30 of them are flown** across the full RPM range on a vertical free-flight launcher that spins each prop to a set rate, releases it, and records its climb. The measured results become a second dataset with the same identifiers, so simulation and reality can be joined row by row.
 
-Two structural rules hold everywhere. First, the pipeline is a strict DAG: no notebook reads a file produced by a later notebook, and the only key shared across stages is `config_id` (0–4999). Second, everything the pipeline *uses* but never *generates* lives in `utils/` (measured data, launcher test campaigns, the Grasshopper definition, the solver executables, the shared measurement module), while everything it *writes* lives in the output folders (`csv/`, `stl/`, `plots/`, `qprop_input/`, `qprop_output/`, `xfoil_polars/`, `representative_stl/`).
-
-For the physics: blade sections are NACA 4-digit airfoils whose lift/drag polars XFoil computes at each station's Reynolds number (many stations sit below Re 20 000, where a documented fallback hierarchy handles non-convergence); QProp assembles whole-propeller thrust/torque from those polars with blade-element/vortex theory; and the free flight integrates m·dV/dt = T − mg − D, I·dω/dt = −Q, dh/dt = V with the spin decaying freely. Because the launcher's screw release strips most of the spin at release, a calibrated monotonic correction h = A + B·h_aero maps the clean aerodynamic prediction onto what the rig actually achieves — preserving design ranking exactly while cutting the mean absolute height error from ≈1.4 m to ≈0.2 m. Full derivations and justifications are in the thesis; each notebook's markdown documents the physics it uses.
+Everything is organised as ten Jupyter notebooks forming a strict pipeline (no stage reads the output of a later stage), a single configuration module, and a `utils/` folder holding every input the pipeline *uses* but never *writes* — measured data, launcher test campaigns, the parametric CAD definition and the aerodynamic solvers. This repository contains exactly that: **the code and `utils/`**. Everything else you will see mentioned in this README (`csv/`, `stl/`, `plots/`, solver caches, the two datasets) is *generated* by running the notebooks.
 
 ---
 
-## 2. Repository Layout
+## 2. Physics Background
+
+Four ideas are enough to read everything else.
+
+**A blade section is an airfoil.** Cut a propeller blade at any radius and you get a NACA 4-digit airfoil described by chord, thickness and camber. Its lift and drag depend on the angle of attack and are summarised by its *polar*, which we compute with **XFoil**. These propellers are small and slow, so many sections operate at very low Reynolds numbers (Re < 20 000) where the flow is delicate and XFoil does not always converge — the pipeline handles this with a documented fallback hierarchy per station.
+
+**Blade elements add up to a propeller.** **QProp** combines the section polars along the blade (blade-element/vortex theory) into whole-propeller thrust T and torque Q at any operating point (flight speed V, rotation speed RPM). We tabulate T(V, ω) and Q(V, ω) over a grid once per design.
+
+**Free flight is a small ODE.** After release the propeller climbs under its own thrust while its spin decays, because nothing drives it anymore:
 
 ```
-IDEAL-Final-Pipeline/
-├── 1_lhs_sampling.ipynb … 9_validation.ipynb   the pipeline (10 notebooks)
-├── pipeline_config.py        every tunable parameter of every notebook
-├── dashboard.html            interactive results browser
-├── requirements.txt          pinned dependencies (Python 3.11)
-│
-├── utils/                    everything the pipeline USES but never writes
-│   ├── 00_measured_mass_inertia.csv   bench measurements (scale + trifilar times)
-│   ├── 00_validation_geometry.csv     true geometry of the 30 flight-tested props
-│   ├── results/                       raw launcher test campaigns (*_cleaned/ runs)
-│   ├── measurements.py                single access point for all measured data
-│   ├── Propeller_Raul_V1.2.gh         parametric Grasshopper generator (NB2)
-│   ├── xfoil.exe · qprop.exe · motor.mas   solver executables + motor file
-│   └── propeller.png                  README image
-│
-├── csv/                      all computed tables (01_… to 07_…, validation_*, datasets)
-├── stl/                      all 5000 meshes            (bulk, re-run input for NB3)
-├── representative_stl/       the 100 fabricated props
-├── validation_stl/           true meshes of the 10 recovered props
-├── xfoil_polars/ (+validation/)       cached XFoil polar files
-├── qprop_input/props (+validation/)   QProp propeller files
-├── qprop_output/ (+validation/)       raw QProp solver output
-└── plots/nb1 … plots/nb9     every figure, one folder per stage (PNG)
+m·dV/dt = T(V, ω) − m·g − D(V)      I·dω/dt = −Q(V, ω)      dh/dt = V
 ```
 
----
+Mass m comes from the STL volume times a print density calibrated on 100 weighed parts; the spin inertia I from the STL inertia tensor with a measured correction; D is the drag of the non-blade structure. Integrating this gives h_max.
 
-## 3. Installation
+**The launcher is not ideal.** The release mechanism unscrews the spinning prop off its pin, stripping most of the spin and adding a small upward kick. A two-parameter monotonic correction `h = A + B·h_aero`, calibrated live on the launcher data in `utils/results/`, maps the idealised aerodynamic height onto what the rig actually achieves — it preserves the design *ranking* exactly while fixing the absolute heights (mean error drops from ≈1.4 m to ≈0.2 m).
 
-**Python 3.11 is required.** All versions in `requirements.txt` are pinned against Python 3.11.
-
-1. Install [Python 3.11](https://www.python.org/downloads/) (on Windows, tick *Add python.exe to PATH*).
-2. From the pipeline folder, create and activate a virtual environment:
-
-   ```
-   py -3.11 -m venv .venv          (Windows)
-   .venv\Scripts\activate
-
-   python3.11 -m venv .venv        (macOS / Linux)
-   source .venv/bin/activate
-   ```
-
-3. `pip install -r requirements.txt`
-4. External tools (bundled in `utils/` — nothing to install): `xfoil.exe` (NB4) and `qprop.exe` (NB5) are Windows binaries; NB1, NB3, NB6–NB9 are pure Python and run on any OS. **NB2 only:** Rhinoceros 8 must be installed — the notebook launches its bundled RhinoCompute server itself (`RHINO_COMPUTE_EXE` in `pipeline_config.py`).
-5. Start Jupyter from the activated environment: `jupyter notebook`.
+One more tool: the 5000 designs are drawn by **constrained Latin Hypercube Sampling**, which covers the 17-dimensional space evenly while enforcing printability (wall thickness, solidity) and aerodynamic sanity (taper, monotonic twist, angle-of-attack windows); and the 100 printed designs are chosen by **greedy k-centre** so they span that space with a guaranteed covering radius.
 
 ---
 
-## 4. Configuration
+## 3. Pipeline Overview and DAG
 
-**Every tunable parameter of every notebook lives in `pipeline_config.py`.** The module is organised in commented sections: global operating envelope (RPM grid, launch RPMs, reference launch RPM), physical constants, per-stage parameters for NB1 (slider bounds, seeds, feasibility constraints), NB2 (RhinoCompute connection, worker counts, retry passes), NB4 (XFoil settings, Reynolds grid, fit windows), NB5 (QProp grid, plausibility gates), NB6/NB6b (ODE tolerances, drag model), NB7 (selection budgets, features, seed), NB8 (figure dpi, retention-curve settings), NB9 (validation switches, run-cleaning thresholds), and the canonical output filenames (`CSV_NAMES`). Each notebook's `## 2. Configuration` cell only *aliases* from this module and derives paths — change values in `pipeline_config.py`, never inside a notebook. `python pipeline_config.py` prints a self-test summary.
+Ten notebooks, run in order. Each is structured identically — **1. Imports · 2. Configuration · 3. Function Definitions · 4. Main Code** — takes its parameters from `pipeline_config.py`, and ends with pass/fail checks on its own outputs.
 
-**Measured data enters the pipeline only through `utils/measurements.py`**, which owns the paths of the three measured inputs (`utils/00_measured_mass_inertia.csv`, `utils/00_validation_geometry.csv`, `utils/results/`), the trifilar-pendulum rig constants and the period-to-inertia conversion. No notebook hardcodes a measured-data path.
+| Stage | Notebook | In one line |
+|---|---|---|
+| NB1 | `1_lhs_sampling` | sample 5000 constrained designs → `csv/01_geometry.csv` |
+| NB2 | `2_stl_generation` | mesh each design via Grasshopper/RhinoCompute → `stl/`, volumes |
+| NB3 | `3_geometry_metadata` | NACA codes per station; calibrated mass + inertia per STL |
+| NB4 | `4_xfoil_simulation` | XFoil polars for every blade station over a Reynolds grid |
+| NB5 | `5_qprop_simulation` | QProp thrust/torque surfaces over the (V, RPM) grid |
+| NB6 | `6_flight_dynamics` | free-flight ODE at 11 launch RPMs (idealised, aero-only) |
+| NB6b | `6b_flight_dynamics_release` | same flight + launcher release correction → **full dataset** |
+| NB7 | `7_representative_selection` | greedy k-centre pick of 100 props for fabrication |
+| NB8 | `8_visualization` | every figure of the project → `plots/` |
+| NB9 | `9_validation` | mass, inertia and flight vs measurements → **validated dataset** |
 
-Two rules of thumb: to change a parameter, edit `pipeline_config.py` and re-run from the first affected notebook (see the DAG below); if you widen the RPM envelope, re-run NB5 with `QPROP_OVERWRITE_RUNS = True` first — NB6/NB6b refuse to extrapolate beyond the sweep ceiling.
-
----
-
-## 5. Running the Pipeline
-
-All `csv/` outputs, both datasets, all figures and both XFoil caches ship pre-computed — nothing needs re-running to *use* the results. The bulk folders (`stl/` ≈ 9.7 GB, `qprop_output/` ≈ 3.9 GB) are only needed to re-run their stages from scratch.
-
-Run order (each notebook top to bottom; every one self-checks its outputs):
-
-1. **NB1** — deterministic (seeds in `pipeline_config.py`); writes `01_geometry.csv`.
-2. **NB2** — needs Rhino 8; re-runnable (existing STLs skipped, `GENERATION_PASSES` retry rounds).
-3. **NB3** — needs `utils/00_measured_mass_inertia.csv` + meshes; writes NACA codes and calibrated mass/inertia.
-4. **NB4** — runs XFoil for every job not already cached in `xfoil_polars/`; with the shipped caches nothing re-runs.
-5. **NB5** — QProp over the 231-point (V, RPM) grid, cached per config.
-6. **NB6**, then **NB6b** — flight ODE at all 11 launch RPMs; NB6b fits the release correction on `utils/results/` and writes `dataset_full_simulation.csv`.
-7. **NB7** — **only when selecting a new fabrication batch**: the shipped `07_selected.csv` records the props actually printed and tested; re-running overwrites it with a different (equally valid) subset.
-8. **NB9** — three-stage validation; writes the `validation_*` tables and `dataset_validated.csv`.
-9. **NB8** — regenerates every figure (run after NB9; validation figures are skipped gracefully if NB9 hasn't run).
-
-To extend the validated dataset after new experiments: append bench rows to `utils/00_measured_mass_inertia.csv`, drop new cleaned launcher runs under `utils/results/`, re-run NB3 → NB9 (→ NB8). The dashboard picks the new props up without changes.
-
----
-
-## 6. Pipeline DAG
-
-Solid arrows are file dependencies; every notebook also reads `pipeline_config.py`. Measured inputs (grey box) live in `utils/` and are never written by any notebook.
+Solid arrows are file dependencies; every notebook also reads `pipeline_config.py`. The grey box is this repository's `utils/` folder — measured inputs that no notebook ever writes.
 
 ```mermaid
 flowchart TD
@@ -138,6 +92,7 @@ flowchart TD
         M1["utils/00_measured_mass_inertia.csv<br>(bench mass + trifilar times)"]
         M2["utils/00_validation_geometry.csv<br>(true geometry of tested props)"]
         M3["utils/results/<br>(launcher flight campaigns)"]
+        M4["utils/validation_stl/<br>(printed meshes of 10 early props)"]
     end
 
     NB1["NB1 · LHS sampling"] -->|"01_geometry.csv"| NB2["NB2 · STL generation<br>(RhinoCompute)"]
@@ -150,6 +105,7 @@ flowchart TD
     NB2 -->|"stl/  +  02_stl_volumes.csv"| NB3
     M1 --> NB3
     M2 --> NB3
+    M4 --> NB3
     NB3 -->|"03_naca_codes.csv"| NB4
     NB3 -->|"03_mass_inertia.csv"| NB5
     NB3 -->|"03_mass_inertia.csv"| NB6
@@ -169,7 +125,7 @@ flowchart TD
     M3 --> NB9
 
     NB6b ==>|"writes"| DS1[("csv/dataset_full_simulation.csv<br>5000 configs × 11 RPMs")]
-    NB9 ==>|"writes"| DS2[("csv/dataset_validated.csv<br>30 tested props, measured values")]
+    NB9 ==>|"writes"| DS2[("csv/dataset_validated.csv<br>tested props, measured values")]
 
     NB9 -->|"validation_* tables"| NB8["NB8 · visualization<br>(all figures → plots/)"]
     DS1 --> DASH["dashboard.html<br>(config browser)"]
@@ -179,7 +135,87 @@ flowchart TD
     NB5 -->|"05_qprop_results.csv (FOM)"| DASH
 ```
 
-NB3–NB6b additionally end with a *Validation Subset* pass that re-runs the identical computation on the 10 early-tested props (their true geometry from `utils/00_validation_geometry.csv`, their meshes from `validation_stl/`) and writes `val_`-prefixed twins of every output, using the caches in `xfoil_polars/validation/`, `qprop_input/validation/` and `qprop_output/validation/`. NB9 merges those in automatically, extending the flight validation from 20 to 30 props.
+NB3–NB6b each end with a *Validation Subset* pass: 10 early-printed props were flight-tested before a re-run of NB1 reassigned their `config_id`s to new geometries, so their true geometry is preserved in `utils/00_validation_geometry.csv` and their printed meshes in `utils/validation_stl/`. The pass re-runs the identical computation on exactly those props and writes `val_`-prefixed twins of every output, which NB9 merges in automatically.
+
+---
+
+## 4. What Is in This Repository
+
+```
+├── 1_lhs_sampling.ipynb … 9_validation.ipynb   the pipeline (10 notebooks)
+├── pipeline_config.py        every tunable parameter of every notebook
+├── dashboard.html            interactive results browser (works once the CSVs exist)
+├── requirements.txt          pinned dependencies (Python 3.11)
+│
+└── utils/                    everything the pipeline USES but never writes
+    ├── measurements.py                single access point for all measured data
+    ├── 00_measured_mass_inertia.csv   bench measurements: scale mass + trifilar
+    │                                  oscillation time per fabricated prop
+    ├── 00_validation_geometry.csv     true geometry of the 30 flight-tested props
+    │                                  (geometry_source / stl_source provenance)
+    ├── results/                       raw launcher test campaigns — per-run flight
+    │                                  traces in *_cleaned/ batch folders
+    ├── validation_stl/                printed meshes of the 10 early-tested props
+    ├── Propeller_Raul_V1.2.gh         parametric Grasshopper propeller generator (NB2)
+    ├── xfoil.exe                      XFoil solver, Windows binary (NB4)
+    ├── qprop.exe · motor.mas          QProp solver + motor file (NB5)
+    └── propeller.png                  the image above
+```
+
+That is the complete repository. The split is deliberate: **inputs live in `utils/`, outputs are reproducible** — so this repo plus a Rhinoceros 8 installation is sufficient to regenerate every mesh, every table and every figure from scratch (Section 6 shows what appears where).
+
+---
+
+## 5. Installation and Configuration
+
+**Python 3.11 is required** — all versions in `requirements.txt` are pinned against it.
+
+1. Install [Python 3.11](https://www.python.org/downloads/) (on Windows, tick *Add python.exe to PATH*).
+2. Create and activate a virtual environment in the repo folder:
+
+   ```
+   py -3.11 -m venv .venv          (Windows)
+   .venv\Scripts\activate
+
+   python3.11 -m venv .venv        (macOS / Linux)
+   source .venv/bin/activate
+   ```
+
+3. `pip install -r requirements.txt`
+4. External tools: `utils/xfoil.exe` and `utils/qprop.exe` are bundled Windows binaries, so NB4/NB5 need Windows (or Wine); NB1, NB3, NB6–NB9 are pure Python and run anywhere. **NB2 additionally requires Rhinoceros 8** — the notebook launches its bundled RhinoCompute server itself (`RHINO_COMPUTE_EXE` in `pipeline_config.py` points to it).
+5. `jupyter notebook` from the activated environment.
+
+**Configuration.** Every tunable parameter of every notebook lives in **`pipeline_config.py`**, organised in commented per-stage sections: the operating envelope (RPM grid, 11 launch RPMs, reference launch RPM), physical constants, NB1's slider bounds/seeds/feasibility constraints, NB2's RhinoCompute settings, NB4's XFoil settings and Reynolds grid, NB5's QProp grid and plausibility gates, NB6/NB6b's ODE tolerances and drag model, NB7's selection budgets, NB8's figure settings, NB9's validation switches, and the canonical output filenames. Each notebook's Configuration cell only *aliases* from this module — change values here, never inside a notebook. `python pipeline_config.py` prints a self-test summary.
+
+**Measured data** is accessed exclusively through **`utils/measurements.py`**, which owns the paths of everything in `utils/`, the trifilar-pendulum rig constants and the period-to-inertia conversion. To extend the experimental record later, append bench rows to `utils/00_measured_mass_inertia.csv` and drop new cleaned launcher runs under `utils/results/` — then re-run NB3 → NB9.
+
+---
+
+## 6. Running the Pipeline — What Appears on Disk
+
+Run the notebooks in order, each top to bottom. This is what your folder looks like as you go:
+
+**After NB1** (seconds, deterministic — fixed seeds): a `csv/` folder appears with `01_geometry.csv` — 5000 rows × 18 columns, one per design, the 17 geometry parameters keyed by `config_id` (0–4999). This id is the primary key of everything that follows.
+
+**After NB2** (hours; Rhino required): `stl/` with one binary mesh per design (`prop_<id>.stl`, ~2 MB each, ≈10 GB total) and `csv/02_stl_volumes.csv` with the enclosed volume and `stl_ok`/`single_solid` validity flags. A handful of extreme geometries fail to mesh — the batch cell retries them over several passes and the flags record the survivors. Re-runnable: existing meshes are skipped.
+
+**After NB3** (minutes): `csv/03_naca_codes.csv` (the airfoil code at each blade station), `csv/03_mass_inertia.csv` (calibrated mass, full inertia tensor, corrected `izz_regressed`), three calibration audit tables, and the first `val_` twins (`val_02`, `val_03_*`) for the 10 recovered props.
+
+**After NB4** (hours cold): `xfoil_polars/` — a cache of raw XFoil polar files (~4000 of them, named `naca<code>_re<Re>_xtr<x>_n5.txt`) plus `xfoil_polars/validation/` for the subset — and `csv/04_xfoil_polars.csv`: per design, the ten aerodynamic coefficients QProp needs at each of 7 stations, each station labelled with its solution tier (`viscous` / `viscous_near_re` / `hub_uses_s1` / `failed`) and a per-design confidence score. Fully cached: a re-run computes nothing that already exists.
+
+**After NB5** (hours cold): `qprop_input/props/` (one QProp geometry file per design), `qprop_output/` (raw solver output per design, ~4 GB), and two tables: `csv/05_qprop_results.csv` (per-design optima: hover point, best figure of merit, best efficiency) and `csv/05_qprop_sweep.csv.gz` (the full T/Q surfaces: one row per design × 231 grid points).
+
+**After NB6 + NB6b** (tens of minutes): `csv/06_flight_dynamics_<rpm>rpm.csv` ×11 and the `06b_*` release-corrected equivalents, the fitted correction in `csv/06b_release_calibration.csv`, and the first headline deliverable: **`csv/dataset_full_simulation.csv`** — 55 000 rows × 40 columns.
+
+**After NB7** (seconds): `csv/07_selected.csv` + `csv/07_all_subsets.csv` (the 100-prop fabrication subset with band/tier labels) and `representative_stl/` (their meshes, copied). Read the reproducibility note in Section 7.8 before re-running this one.
+
+**After NB9** (minutes): the six `csv/validation_*` tables (mass, inertia, the matched sim-vs-measured flight cells, rankings, summaries) and the second headline deliverable: **`csv/dataset_validated.csv`**.
+
+**After NB8** (minutes): `plots/nb1/` … `plots/nb9/` — every figure of the project as PNG, one folder per stage. Run it after NB9; the validation figures are skipped gracefully until NB9's tables exist.
+
+The full cold run is dominated by NB2, NB4 and NB5 (hours each); everything else is minutes. All stages are cached and re-runnable.
+
+---
 
 ## 7. Notebook Deep Dive
 
@@ -717,31 +753,30 @@ The full validation of the pipeline against physical measurements, in three stag
 - **4.21 How to Read These Results** — - **Stage 1 / 2 (mass, inertia)** validate the secondary rigs: STL-derived mass and inertia vs the scale and trifilar pendulum. Both raw and regression-corrected inertia are reported. - **Stage 3 (flight height)** is the core. It compares the **aero** (NB6) and **release-corrected** (NB6b) simulations against the launcher, using **PASS-only, spike-filtered** measurements over all 30 tested props. - **Three ranking views**: *global* (pooled, weakest), *per-RPM* (selection-relevant — ranks props at a fixed operating RPM), and *per-config* (does the sim reproduce one prop's height-vs-RPM shape). The per-config view is the strongest; the release correction fixes the absolute magnitude without touching any ranking. - **Censored cells** (string-ceiling hits) are excluded from every quantitative metric and scored separately for qualitative agreement. - The validated dataset `csv/dataset_validated.csv` carries measured values only, on the identifier/geometry/measurement subset of the full dataset's schema (join the two on `config_id` + `rpm_launch`), ready for data-driven modelling and for future test batches.
 ---
 
-## 8. Data Guide
+---
 
-**Naming convention.** `csv/<NB>_<name>.csv` marks the notebook that writes a file (`01_geometry.csv` ← NB1, `06b_*` ← NB6b, …). `csv/val_*` are the validation-subset twins. `csv/validation_*` are NB9's result tables. `utils/00_*` are measured inputs, never written by any notebook and accessed only through `utils/measurements.py`.
+## 8. The Two Datasets
 
-**Measured inputs (in `utils/`):**
+**Naming convention first:** `csv/<NB>_<name>.csv` marks the notebook that writes a file (`01_geometry.csv` ← NB1, `06b_*` ← NB6b, …), `csv/val_*` are the validation-subset twins, `csv/validation_*` are NB9's result tables. Never edit a generated CSV by hand — re-run its owner notebook.
 
-| File | Content | Written by | Read by |
-|---|---|---|---|
-| `utils/00_measured_mass_inertia.csv` | `config_id, mass_g, T_meas` — scale mass and trifilar time (10 oscillations) per fabricated prop | you (append new bench measurements) | NB3 (calibration), NB9 (validation) |
-| `utils/00_validation_geometry.csv` | true geometry of every flight-tested prop, with `geometry_source` and `stl_source` | fixed record | NB3–NB6b (validation subset), NB9 |
-| `utils/results/*_cleaned/` | launcher runs (`<id>_<blades>_<rpm>_<run>_cleaned.csv`) + `cleaned_validation_report.csv` | test campaigns | NB6b (calibration), NB8 (retention), NB9 |
+**`csv/dataset_full_simulation.csv`** (written by NB6b) — the simulation dataset: 55 000 rows = 5000 configs × 11 launch RPMs, 40 columns. Identifiers (`config_id`, `rpm_launch`), the 17 geometry parameters, mass/inertia/drag areas, the polar `confidence_score`, quality flags (`stl_ok`, `qprop_ok`, `flight_ok`, `can_liftoff`), and the flight outputs (`T_static_N`, `Q_static_Nm`, `Pshaft_static_W`, `T_over_W`, `h_max_aero_m`, `h_max_m`, `flight_time_s`, `hover_time_s`, `v_max_m_s`, `v_impact_m_s`, `rpm_at_impact`). For model training: filter on the quality flags (≈12 % of rows are honestly NaN because an upstream gate failed — no mesh, no converged polars, no plausible QProp surface), and mind the floor: designs that cannot lift off all get `h_max_m = A` (the release-kick floor, ≈0.30 m), which piles up at low RPMs — use `can_liftoff` or `h_max_aero_m` if that matters to your model.
 
-**The two datasets:**
+**`csv/dataset_validated.csv`** (written by NB9) — the measured dataset: one row per physically tested (config, RPM) cell, containing measured values on the identifier/geometry/measurement subset of the full dataset's columns: the true printed geometry (`geometry_source` tells which table it came from), bench mass and trifilar inertia, and the launcher height (`h_max_m` = isotonic-regressed PASS-mean, with `meas_h_median/mean/min/max`, `n_pass_runs` and the `meas_censored` ceiling flag alongside). The simulated reference heights are appended as explicitly named columns (`h_sim_release_m`, `h_sim_aero_m`); simulation-only fields are omitted entirely rather than carried as empty columns. The two datasets join on `config_id` + `rpm_launch`.
 
-- **`csv/dataset_full_simulation.csv`** (written by NB6b) — 55 000 rows = 5000 configs × 11 launch RPMs; 40 columns: identifiers (`config_id`, `rpm_launch`), the 17 geometry parameters, mass/inertia/drag areas, `confidence_score`, quality flags (`stl_ok`, `qprop_ok`, `flight_ok`, `can_liftoff`), and all flight outputs (`T_static_N`, `Q_static_Nm`, `Pshaft_static_W`, `T_over_W`, `h_max_aero_m`, `h_max_m`, `flight_time_s`, `hover_time_s`, `v_max_m_s`, `v_impact_m_s`, `rpm_at_impact`), plus `data_source = simulation`. For model training, filter on the quality flags and use `h_max_aero_m` (pure aerodynamics) or `h_max_m` (what the launcher achieves) as the target.
-- **`csv/dataset_validated.csv`** (written by NB9) — one row per physically tested (config, RPM) cell (currently 222 rows over 30 props), containing **measured values only**: the true printed geometry, bench mass and trifilar inertia, and the launcher height (`h_max_m` = isotonic-regressed PASS-mean). One shipped-file exception: the 10 early validation props were never bench-measured, so their `mass_g`/`izz_kg_m2` cells were filled once, by hand, with the NB3 STL-derived estimates — a re-run of NB9 leaves those cells empty until real bench measurements are appended to `utils/00_measured_mass_inertia.csv`. Its 35 columns are the identifier/geometry/measurement subset of the full dataset's schema — simulation-only fields (static thrust/torque/power, T/W, flight time, speeds, drag areas) are omitted entirely rather than carried as empty columns, and the two datasets join on `config_id` + `rpm_launch`. The simulated heights are appended as `h_sim_release_m` / `h_sim_aero_m`, together with `meas_h_median/mean/min/max`, `n_pass_runs`, `meas_censored` and `geometry_source`. **It grows automatically**: add bench rows and cleaned runs under `utils/`, re-run NB9, and the new props appear (the dashboard picks them up without changes).
-
-**Reading and writing rules.** Never edit `csv/` outputs by hand — re-run the notebook that owns them (each file's owner is its number prefix). To add measurements, append to the `utils/` inputs and re-run NB3 → (NB4–NB6b if geometry-affecting) → NB9.
+**A reproducibility note on the validation.** NB7's selection is seeded and reproducible, but it is a function of the upstream data — and the physical campaign printed one specific historical subset. Its identity is preserved in `utils/` (the tested props' geometry and launcher runs), so NB9 always validates the 10 recovered props; the other 20 tested props enter the matched tables only if the regenerated selection contains them. Reproducing the thesis' exact 30-prop validation tables therefore requires the original `07_selected.csv` from the thesis deliverable rather than a freshly generated one.
 
 ---
 
-## 9. Browsing the Results
+## 9. The Results Dashboard
 
-From the pipeline folder run `python -m http.server 8000` and open `http://localhost:8000/dashboard.html` (the page loads CSVs over HTTP, so it needs a local server rather than a `file://` open).
+Once the pipeline has run, `dashboard.html` browses everything. From the repo folder:
 
-Three tabs: **Overview** — distributions of all 17 geometric parameters, radial evolution of chord/twist/thickness, and the performance panels (mass, inertia, thrust, torque, FOM, T/W, heights, flight time, and more), switchable by launch RPM with an in-page glossary. **Representative subset** — the 100 fabricated props with PCA coverage plots of the design space. **Browse propellers** — filterable list of all 5000 configs; each card shows a live 3-D STL render, the geometry groups, the QProp airfoil viewer (click an airfoil for its reconstructed polar overlaid with the raw XFoil points, its source tier and metadata; discarded stations in red with the reason), performance at the selected RPM, and — for tested props — measured-vs-simulated tables with Δ%. Up to four configs compare side by side.
+```
+python -m http.server 8000        →  open http://localhost:8000/dashboard.html
+```
 
-The page adapts to CSV growth automatically: new rows, RPM levels or validated props appear without editing the HTML.
+(it loads the CSVs over HTTP, so it needs the local server rather than a `file://` open).
+
+Three tabs. **Overview** — distributions of all 17 geometric parameters, the radial evolution of chord/twist/thickness across sampled designs, and the performance panels (mass, inertia, thrust, torque, figure of merit, T/W, heights, flight time…), all switchable by launch RPM, with an in-page glossary for every term. **Representative subset** — the 100 fabricated props with PCA coverage plots of the design space. **Browse propellers** — a filterable list of all 5000 designs; each propeller card shows a live 3-D render of its mesh, the geometry groups, the QProp airfoil viewer (click any airfoil for its reconstructed polar overlaid with the raw XFoil points, its solution tier and metadata — discarded stations in red with the reason), performance at the selected RPM, and, for flight-tested props, measured-vs-simulated tables with per-cell % errors. Up to four designs compare side by side.
+
+The page adapts to data growth automatically: new rows, RPM levels or validated props appear without editing the HTML.

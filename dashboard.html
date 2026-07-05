@@ -333,7 +333,7 @@ const TIER_INFO = {
   failed: { label: 'Discarded', cls: 'failed',
     desc: 'Discarded: XFoil produced no converged polar for this airfoil at the target Reynolds number, and no usable cached polar of the same NACA section existed at any nearby Reynolds number. The station is excluded from the QProp blade model and neighbouring stations are interpolated across it, lowering the polar confidence score.' },
 };
-const STL_DIRS = ['stl', 'representative_stl', 'validation_stl'];
+const STL_DIRS = ['stl', 'representative_stl', 'utils/validation_stl'];
 
 const GEO_COLS = ['radius_mm','ring_height_mm','ring_thickness_mm','blade_count',
   'inner_thickness_pct','inner_max_pos','inner_camber','inner_chord_mm','inner_angle_deg',
@@ -633,7 +633,7 @@ async function showStl(cid) {
   const pos = await fetchStl(cid);
   if (state.selected !== cid) return;
   if (!pos) {
-    msg.innerHTML = 'STL not available for #' + cid + '<br>(meshes are served from <code>stl/</code>, <code>representative_stl/</code> or <code>validation_stl/</code>)';
+    msg.innerHTML = 'STL not available for #' + cid + '<br>(meshes are served from <code>stl/</code>, <code>representative_stl/</code> or <code>utils/validation_stl/</code>)';
     return;
   }
   msg.innerHTML = '';

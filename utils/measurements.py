@@ -215,4 +215,4 @@ def load_recovered_validation_geometry(base_dir):
 
 def validation_stl_dir(base_dir):
 
-    return Path(base_dir) / 'validation_stl'
+    return utils_dir(base_dir) / 'validation_stl'
